@@ -1,9 +1,10 @@
 # 依赖
 node_modules/
 
-# 构建产物
+# 构建产物（不入库）
 dist/
-src-tauri/target/
+target/
+release/
 *.log
 
 # 系统文件

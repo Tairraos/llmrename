@@ -1,0 +1,4 @@
+# 让 cargo 的 target 目录落在项目根（而非 src-tauri/target），
+# 便于统一的 build 清理脚本管理。见 scripts/release.sh。
+[build]
+target-dir = "../target"
