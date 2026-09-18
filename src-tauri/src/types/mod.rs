@@ -4,11 +4,13 @@
 pub mod asset;
 pub mod config;
 pub mod error;
+pub mod history;
 pub mod log;
 pub mod rename;
 
 pub use asset::*;
 pub use config::*;
 pub use error::*;
+pub use history::*;
 pub use log::*;
 pub use rename::*;

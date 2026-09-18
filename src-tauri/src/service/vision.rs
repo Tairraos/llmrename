@@ -40,6 +40,38 @@ fn read_base64(dir: &Path, asset: &AssetEntry) -> Result<String> {
     Ok(base64::engine::general_purpose::STANDARD.encode(bytes))
 }
 
+/// 按绝对路径提取要素（拖放/AI 填充场景，未受目录约束）。
+pub async fn extract_abs(path: &Path, pattern: &str, model: &ModelConfig) -> Result<String> {
+    let filename = path
+        .file_name()
+        .map(|f| f.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let fields = crate::service::prompts::fields_from_pattern(pattern);
+    if fields.is_empty() {
+        return Err(AppError::template("模板中没有 {字段} 占位符"));
+    }
+    let mime = mime_for(&filename);
+    let bytes = std::fs::read(path).map_err(|e| {
+        AppError::fs(format!(
+            "读取图片失败 {}：{e}（文件可能已被移动或删除）",
+            path.display()
+        ))
+    })?;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(bytes);
+    let asset = AssetEntry {
+        path: path.to_string_lossy().into_owned(),
+        filename,
+        size_bytes: 0,
+        modified_secs: None,
+    };
+    let body = build_body(model, &asset, pattern, &fields, &mime, &b64);
+    let resp = post_json(model, body).await?;
+    let content = parse_content(resp)?;
+    let extracted: ExtractedFieldsJson = parse_json_text(&content)?;
+    serde_json::to_string(&extracted.fields)
+        .map_err(|e| AppError::vision(format!("序列化提取结果失败：{e}")))
+}
+
 fn mime_for(filename: &str) -> String {
     let ext = filename
         .rsplit_once('.')

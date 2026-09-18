@@ -17,10 +17,17 @@ pub fn run() {
             runtime::commands::load_config,
             runtime::commands::scan_assets,
             runtime::commands::preview_rename,
-            runtime::commands::execute_rename,
+            runtime::commands::collect_targets,
+            runtime::commands::ai_fill_targets,
+            runtime::commands::rename_items,
+            runtime::commands::undo_rename,
+            runtime::commands::redo_rename,
+            runtime::commands::history_status,
+            runtime::commands::get_version,
             runtime::commands::list_logs,
             runtime::commands::open_log_dir,
             runtime::commands::pick_dir,
+            runtime::commands::pick_files,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

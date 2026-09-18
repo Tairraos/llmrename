@@ -1,147 +1,108 @@
 //! 重命名服务：编排「模板渲染 → 视觉调用 → 防冲突 → 执行改名 → 记日志」。
 //! 每个文件独立处理：单个失败不中断整体，结果逐条落盘。
 
-use std::collections::{HashMap, HashSet};
-use std::path::Path;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
 use crate::repo;
-use crate::types::{
-    AppError, AssetEntry, LogEntry, ModelConfig, RenameOptions, RenameResult, Result,
-};
+use crate::types::{AppError, RenameOptions, Result};
 
-/// 执行一批重命名。
+/// 单个文件重命名的结果（含新旧绝对路径，供 undo 历史与展示）。
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct RenameOutcome {
+    /// 原绝对路径
+    pub from: PathBuf,
+    /// 新绝对路径
+    pub to: PathBuf,
+    /// ok | failed | skipped
+    pub status: String,
+    /// 失败/跳过原因
+    pub error: Option<String>,
+}
+
+/// 按显式目标名批量重命名（前端可编辑目标列）。
 ///
-/// - `dir`：资产目录（绝对路径）
-/// - `pattern`：模板
-/// - `paths`：用户勾选的绝对路径（属于 dir 内）
-/// - `model` / `options`：模型与选项
-///
-/// 返回汇总计数；详细结果写 JSONL 日志。
-pub async fn execute(
-    dir: &Path,
-    pattern: &str,
-    paths: &[String],
-    model: &ModelConfig,
+/// - `items`：RenameItem { path, target }，target 为用户手动编辑或 AI 填充后的完整文件名
+/// - 每个文件独立：目标名校验（同目录冲突、扩展名允许）后 rename
+/// - 返回每个文件的 RenameOutcome（含新旧绝对路径），由 Runtime 层写日志并记历史
+pub fn rename_explicit(
+    items: &[crate::types::RenameItem],
     options: &RenameOptions,
-    log_dir: &Path,
-) -> Result<RenameResult> {
-    let fields = crate::service::prompts::fields_from_pattern(pattern);
-    if fields.is_empty() {
-        return Err(AppError::template("模板中没有 {字段} 占位符"));
-    }
-
-    // 将绝对路径映射为目录内相对文件名，并确保属于该目录（防越界）。
-    let mut assets: Vec<AssetEntry> = Vec::new();
-    for p in paths {
-        let pb = Path::new(p);
-        let rel = pb.strip_prefix(dir).map_err(|_| {
-            AppError::invalid(format!(
-                "路径不在资产目录内：{p}（目录：{}）",
-                dir.display()
-            ))
-        })?;
-        if rel.components().count() != 1 {
-            return Err(AppError::invalid(format!(
-                "暂不支持子目录内的文件：{p}（仅支持资产目录根下的文件）"
-            )));
-        }
-        assets.push(AssetEntry {
-            path: pb.to_string_lossy().into_owned(),
-            filename: rel.to_string_lossy().into_owned(),
-            size_bytes: 0,
-            modified_secs: None,
-        });
-    }
-
-    let mut result = RenameResult::default();
-    for asset in &assets {
-        match rename_one(dir, asset, pattern, model, options).await {
-            Ok((target, fields_json, base)) => {
-                result.record("ok");
-                let entry = LogEntry::ok(
-                    asset.filename.clone(),
-                    target,
-                    Some(fields_json),
-                    Some(base),
-                );
-                let _ = repo::logbook::append(log_dir, &entry);
+) -> Vec<RenameOutcome> {
+    items
+        .iter()
+        .map(|it| {
+            let from = PathBuf::from(&it.path);
+            let to = match explicit_target(&from, &it.target, options) {
+                Ok(t) => t,
+                Err(e) => {
+                    return RenameOutcome {
+                        from,
+                        to: PathBuf::new(),
+                        status: "skipped".into(),
+                        error: Some(e.to_string()),
+                    };
+                }
+            };
+            match repo::renamer::rename_path(&from, &to) {
+                Ok(()) => RenameOutcome {
+                    from,
+                    to,
+                    status: "ok".into(),
+                    error: None,
+                },
+                Err(e) => RenameOutcome {
+                    from,
+                    to,
+                    status: "failed".into(),
+                    error: Some(e.to_string()),
+                },
             }
-            Err(e) => match e {
-                AppError::Template(msg) => {
-                    result.record("skipped");
-                    let entry = LogEntry::skipped(asset.filename.clone(), msg);
-                    let _ = repo::logbook::append(log_dir, &entry);
-                }
-                _ => {
-                    result.record("failed");
-                    let entry = LogEntry::failed(asset.filename.clone(), e.to_string());
-                    let _ = repo::logbook::append(log_dir, &entry);
-                }
-            },
-        }
+        })
+        .collect()
+}
+
+/// 校验并构造显式目标绝对路径。
+fn explicit_target(from: &Path, target: &str, options: &RenameOptions) -> Result<PathBuf> {
+    let target = target.trim();
+    if target.is_empty() {
+        return Err(AppError::invalid("目标文件名为空（跳过）"));
     }
-    Ok(result)
-}
-
-/// 处理单个文件：提取 → 渲染 → 冲突处理 → 改名。
-/// 成功返回 (最终名, 字段JSON, base名)。
-async fn rename_one(
-    dir: &Path,
-    asset: &AssetEntry,
-    pattern: &str,
-    model: &ModelConfig,
-    options: &RenameOptions,
-) -> Result<(String, String, String)> {
-    let fields_json = crate::service::vision::extract(dir, asset, pattern, model).await?;
-    let base = crate::service::renderer::render_plan(pattern, &fields_json);
-    let final_name = unique_name(dir, &base, asset, options)?;
-    repo::renamer::rename(dir, &asset.filename, &final_name)?;
-    Ok((final_name, fields_json, base))
-}
-
-/// 生成防冲突的最终名：后缀校验 → 黑名单 → 追加序号。
-fn unique_name(
-    dir: &Path,
-    base: &str,
-    asset: &AssetEntry,
-    options: &RenameOptions,
-) -> Result<String> {
-    let ext = asset.ext();
-    let allowed = if options.allowed_suffixes.is_empty() {
-        true
-    } else {
-        options
+    if target.contains('/') || target.contains('\\') {
+        return Err(AppError::invalid(
+            "目标文件名不能包含路径分隔符（仅重命名，不移动）",
+        ));
+    }
+    if target.contains('\0') {
+        return Err(AppError::invalid("目标文件名包含非法字符 NUL"));
+    }
+    // 扩展名允许校验（用户可手动编辑，仍须符合允许列表）
+    let ext = target
+        .rsplit_once('.')
+        .map(|(_, e)| e.to_lowercase())
+        .unwrap_or_default();
+    if !options.allowed_suffixes.is_empty()
+        && !options
             .allowed_suffixes
             .iter()
             .any(|s| s.eq_ignore_ascii_case(&format!(".{ext}")))
-    };
-    if !allowed {
+    {
         return Err(AppError::template(format!(
-            "文件 {} 的扩展名 .{ext} 不在允许列表内（跳过）",
-            asset.filename
+            "目标名 {target} 的扩展名 .{ext} 不在允许列表内（跳过）"
         )));
     }
-    for word in &options.blacklist {
-        if base.to_lowercase().contains(&word.to_lowercase()) {
-            return Err(AppError::template(format!(
-                "生成名包含黑名单词 “{word}”（跳过）：{base}"
-            )));
-        }
+    let parent = from.parent().unwrap_or(Path::new("."));
+    let to = parent.join(target);
+    if to == from {
+        return Err(AppError::invalid("目标名与原文件名相同（跳过）"));
     }
-    let candidate = format!("{base}.{ext}");
-    if !dir.join(&candidate).exists() {
-        return Ok(candidate);
+    if to.exists() {
+        return Err(AppError::fs(format!(
+            "目标文件已存在：{}（跳过，请改目标名）",
+            to.display()
+        )));
     }
-    // 冲突：追加 _2, _3, ...
-    for i in 2..=9999 {
-        let c = format!("{base}_{i}.{ext}");
-        if !dir.join(&c).exists() {
-            return Ok(c);
-        }
-    }
-    Err(AppError::template(format!(
-        "无法为 {base}.{ext} 找到可用名（重名过多，跳过）"
-    )))
+    Ok(to)
 }
 
 /// 以「字段名 → 推断值」渲染模板，把未知字段留空（预览用假数据）。
@@ -190,11 +151,6 @@ fn field_example(field: &str) -> String {
     }
 }
 
-/// 辅助：从字段 map 构建 HashSet（供 prompts::missing_fields 使用）。
-pub fn provided_set(fields: &HashMap<String, String>) -> HashSet<String> {
-    fields.keys().cloned().collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -211,85 +167,5 @@ mod tests {
     fn preview_keeps_unknown_as_question() {
         let g = HashMap::new();
         assert_eq!(preview_name("a_{x}", &g), "a_?");
-    }
-
-    #[test]
-    fn unique_name_appends_suffix_on_conflict() {
-        let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("a.jpg"), b"x").unwrap();
-        std::fs::write(dir.path().join("b.jpg"), b"x").unwrap();
-        std::fs::write(dir.path().join("b_2.jpg"), b"x").unwrap();
-        let asset = AssetEntry {
-            path: dir.path().join("a.jpg").to_string_lossy().into_owned(),
-            filename: "a.jpg".into(),
-            size_bytes: 1,
-            modified_secs: Some(0),
-        };
-        let options = RenameOptions::default();
-        // b.jpg 与 b_2.jpg 已存在 → 应得到 b_3.jpg
-        let name = unique_name(dir.path(), "b", &asset, &options).unwrap();
-        assert_eq!(name, "b_3.jpg");
-    }
-
-    #[test]
-    fn unique_name_skips_blacklist_and_bad_suffix() {
-        let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("a.jpg"), b"x").unwrap();
-        let asset = AssetEntry {
-            path: dir.path().join("a.jpg").to_string_lossy().into_owned(),
-            filename: "a.jpg".into(),
-            size_bytes: 1,
-            modified_secs: Some(0),
-        };
-        let mut options = RenameOptions {
-            blacklist: vec!["bad".into()],
-            ..Default::default()
-        };
-        assert!(unique_name(dir.path(), "bad_name", &asset, &options).is_err());
-        options.blacklist = vec![];
-        options.allowed_suffixes = vec![".png".into()];
-        assert!(unique_name(dir.path(), "base", &asset, &options).is_err());
-    }
-
-    #[test]
-    fn execute_requires_fields() {
-        // 无字段模板应报错
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .unwrap();
-        let dir = tempfile::tempdir().unwrap();
-        let log = tempfile::tempdir().unwrap();
-        let r = rt.block_on(execute(
-            dir.path(),
-            "fixed",
-            &[],
-            &ModelConfig::default(),
-            &RenameOptions::default(),
-            log.path(),
-        ));
-        assert!(r.is_err());
-    }
-
-    #[test]
-    fn path_outside_dir_rejected() {
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .unwrap();
-        let dir = tempfile::tempdir().unwrap();
-        let log = tempfile::tempdir().unwrap();
-        let outside = tempfile::tempdir().unwrap();
-        let p = outside.path().join("x.jpg");
-        std::fs::write(&p, b"x").unwrap();
-        let r = rt.block_on(execute(
-            dir.path(),
-            "{date}",
-            &[p.to_string_lossy().into_owned()],
-            &ModelConfig::default(),
-            &RenameOptions::default(),
-            log.path(),
-        ));
-        assert!(r.is_err());
     }
 }

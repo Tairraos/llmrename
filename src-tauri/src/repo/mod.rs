@@ -4,3 +4,5 @@
 pub mod logbook;
 pub mod renamer;
 pub mod scanner;
+pub mod sort;
+pub mod targets;
