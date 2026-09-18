@@ -15,8 +15,9 @@ pnpm install
 # 本地开发运行（vite dev server + tauri dev）
 pnpm tauri dev
 
-# 构建安装包（产出到 src-tauri/target/release/bundle）
-pnpm tauri build
+# 构建发布（自动 bump 版本，默认只出 .app；加 --dmg 出 dmg；target/ 只保留 .app）
+./scripts/release.sh
+./scripts/release.sh --dmg
 
 # 全量检查（门禁）：fmt + clippy + test + 前端语法检查
 pnpm check            # 等价 npx tauri build 前的本地门禁
