@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="zh-Hans">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LLM Rename — 视觉模型批量重命名</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <h1>LLM Rename</h1>
+      <p class="tagline">视觉模型驱动 · 本地批量重命名图片</p>
+    </header>
+
+    <main class="app-main">
+      <!-- ① 模型配置 -->
+      <section class="card" data-block="model">
+        <h2>模型配置</h2>
+        <div class="grid">
+
+          <label class="field">
+            <span>API Base URL</span>
+            <input id="model-base-url" type="url" placeholder="https://api.openai.com/v1" />
+          </label>
+
+          <label class="field">
+            <span>API Key</span>
+            <input id="model-api-key" type="password" placeholder="sk-..." />
+          </label>
+
+          <label class="field">
+            <span>模型</span>
+            <input id="model-name" type="text" placeholder="gpt-4o" />
+          </label>
+
+          <label class="field">
+            <span>超时（秒）</span>
+            <input id="model-timeout" type="number" min="10" max="600" value="60" />
+          </label>
+        </div>
+        <div class="actions">
+          <button id="btn-save-config" class="primary">保存模型配置</button>
+          <span id="config-hint" class="hint" role="status"></span>
+        </div>
+      </section>
+
+      <!-- ② 模板配置 -->
+      <section class="card" data-block="template">
+        <h2>重命名模板</h2>
+        <label class="field">
+          <span>
+            模板（可用变量见右侧，例如
+            <code>{date}_{camera}_{scene}_{description}</code>）
+          </span>
+          <input
+            id="template-pattern"
+            type="text"
+            placeholder="{date}_{scene}_{camera}_{description}"
+          />
+        </label>
+        <div class="field">
+          <span>可用字段（按字段名猜测类别，输入即更新）</span>
+          <ul id="template-fields" class="chip-list"></ul>
+        </div>
+        <div id="template-preview" class="template-preview"></div>
+      </section>
+
+      <!-- ③ 资产库 -->
+      <section class="card" data-block="assets">
+        <h2>资产库</h2>
+        <div class="row">
+          <label class="field grow">
+            <span>图片目录</span>
+            <input id="asset-dir" type="text" placeholder="选择包含图片的目录" />
+          </label>
+          <button id="btn-pick-dir" class="secondary">选择目录</button>
+          <button id="btn-scan" class="primary">扫描</button>
+        </div>
+        <div id="asset-summary" class="hint"></div>
+        <table class="assets-table">
+          <thead>
+            <tr>
+              <th><input type="checkbox" id="check-all" /></th>
+              <th>文件</th>
+              <th>大小</th>
+              <th>修改时间</th>
+              <th>猜测新名</th>
+            </tr>
+          </thead>
+          <tbody id="assets-body"></tbody>
+        </table>
+        <div class="actions">
+          <button id="btn-execute" class="danger">执行重命名（勾选）</button>
+          <button id="btn-open-log" class="secondary">打开日志目录</button>
+          <span id="run-hint" class="hint" role="status"></span>
+        </div>
+      </section>
+
+      <!-- ④ 日志 -->
+      <section class="card" data-block="logs">
+        <h2>重命名日志</h2>
+        <div class="row">
+          <button id="btn-refresh-log" class="secondary">刷新</button>
+          <span id="log-summary" class="hint"></span>
+        </div>
+        <ul id="log-list" class="log-list"></ul>
+      </section>
+    </main>
+
+    <script src="./main.js"></script>
+  </body>
+</html>
