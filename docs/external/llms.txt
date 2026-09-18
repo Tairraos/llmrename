@@ -1,0 +1,31 @@
+# 外部参考 / External References (llms.txt)
+
+本文件是面向外部系统（尤其是 LLM 智能体）的参考索引，遵循 llms.txt 约定。
+
+> llmrename 是什么：Tauri 2 桌面工具，用视觉模型按模板批量重命名图片目录。纯 HTML/CSS/JS 前端 + Rust 五层后端（Types→Config→Repo→Service→Runtime）。
+
+## 关键入口
+
+- `AGENTS.md` — 仓库地图 + 工程铁律（必读）
+- `docs/architecture.md` — 分层与数据流
+- `docs/development.md` — 命令与门禁
+- `docs/plan/execution-plan.md` — 进度与技术债
+- `docs/design/product-spec.md` — 产品验收标准
+- `docs/design/vision-model-contract.md` — 视觉模型接口契约
+
+## 技术栈官方文档
+
+- Tauri 2: https://v2.tauri.app/
+- Tauri Rust API: https://docs.rs/tauri/latest/tauri/
+- OpenAI Chat Completions API: https://platform.openai.com/docs/api-reference/chat
+- Vite: https://vite.dev/guide/
+- serde: https://serde.rs/
+- reqwest: https://docs.rs/reqwest/latest/reqwest/
+
+## 约定速查
+
+- 提交前缀：`fix:` `feat:` `chore:` `init:` `docs:` `refactor:` `test:`，body 详细说明
+- 会话结束前最后一次提交必须 `[已测试]` 且门禁全绿
+- 依赖方向：Types → Config → Repo → Service → Runtime（禁止反向）
+- 配置/日志目录：应用数据目录（仓库外）
+- 前端零框架、零构建产物（vite 仅开发服务器）
