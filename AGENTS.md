@@ -32,7 +32,7 @@
 1. **每轮对话过程中和对话结束时，都必须执行 `git commit` 提交**，Commit message 的 body 要**详细说明**本次变更（做了什么、为什么、影响面）。
 2. **提交颗粒度 = 单一功能变更**：一次提交只做一件事（一个功能 / 一次修复 / 一次重构 / 一次文档更新），不要把多件事塞进一个提交。进行中的半成品按进度分次提交。
 3. **普通提交不受测试和门禁限制**（可带未通过测试的中间态，只要下次提交修好）。
-4. **会话结束前的最后一次提交必须通过全部测试和门禁**（`npm run check` / CI 全绿），并在 Commit message 里注明 `[已测试]` 或 `[未测试]`。
+4. **会话结束前的最后一次提交必须通过全部测试和门禁**（`pnpm check` / CI 全绿），并在 Commit message 里注明 `[已测试]` 或 `[未测试]`。
 5. **Commit message 必须使用 Conventional Commits 前缀**：`fix:`、`feat:`、`chore:`、`init:`、`docs:`、`refactor:`、`test:` 等。格式：
    ```
    <type>: <一句话概括>
@@ -72,7 +72,7 @@ Types → Config → Repo → Service → Runtime
 
 ### 5. 测试与门禁
 
-- 会话结束前的最后提交必须 `cargo fmt --check`、`cargo clippy -- -D warnings`、`cargo test` 全绿，前端 `node --check` 通过（见 `scripts/check.sh`，本地从 `npm run check` 调用）。
+- 会话结束前的最后提交必须 `cargo fmt --check`、`cargo clippy -- -D warnings`、`cargo test` 全绿，前端 `node --check` 通过（见 `scripts/check.sh`，本地从 `pnpm check` 调用）。
 - 本仓库的合并门尽量少而稳：`fmt + clippy + test` 是唯一硬门禁，偶发失败重跑而非改门。
 - 新增逻辑（尤其 Repo 层重命名、Service 层模板渲染与防冲突）必须带单元测试。
 
@@ -83,6 +83,13 @@ Types → Config → Repo → Service → Runtime
 - 文件大小限制：单个源文件尽量 < 300 行；超限先考虑拆模块。
 - 优先共享实用工具（本仓库 `types/`、`scripts/` 内的共享代码），不复制粘贴辅助函数。
 - 偏好"枯燥"技术：可组合、API 稳定、文档清晰的技术；遇到问题先读官方文档，不绕开不透明行为。
+
+### 6.5 包管理（pnpm）
+
+- **本仓库统一使用 pnpm 作为唯一包管理器**：安装依赖用 `pnpm install`，运行脚本用 `pnpm <script>`（如 `pnpm check`、`pnpm tauri dev`）。
+- 不使用 npm / yarn / bun；新增脚本与文档一律写 pnpm 命令。
+- 项目必须提交 `pnpm-lock.yaml` 锁定依赖；`package.json` 中 `packageManager` 字段固定 pnpm 版本。
+- CI 与本地脚本（`scripts/check.sh`）中的包管理相关命令统一为 pnpm。
 
 ### 7. 熵管理
 

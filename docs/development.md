@@ -10,16 +10,16 @@
 
 ```bash
 # 安装前端 devDependencies（首次）
-npm install
+pnpm install
 
 # 本地开发运行（vite dev server + tauri dev）
-npm run tauri dev
+pnpm tauri dev
 
 # 构建安装包（产出到 src-tauri/target/release/bundle）
-npm run tauri build
+pnpm tauri build
 
 # 全量检查（门禁）：fmt + clippy + test + 前端语法检查
-npm run check            # 等价 npx tauri build 前的本地门禁
+pnpm check            # 等价 npx tauri build 前的本地门禁
 ./scripts/check.sh       # 底层脚本，所有检查的单一事实来源
 
 # 仅向后端
@@ -31,7 +31,7 @@ cargo test
 node --check src/main.js
 ```
 
-`npm run check` 只是 `scripts/check.sh` 的门面，CI 直接跑脚本，保证本地与 CI 一致。
+`pnpm check` 只是 `scripts/check.sh` 的门面，CI 直接跑脚本，保证本地与 CI 一致。
 
 ## 目录结构
 

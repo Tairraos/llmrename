@@ -24,6 +24,7 @@
 
 ## 约定速查
 
+- 包管理：统一使用 pnpm（`pnpm install` / `pnpm check`），不用 npm/yarn/bun
 - 提交前缀：`fix:` `feat:` `chore:` `init:` `docs:` `refactor:` `test:`，body 详细说明
 - 会话结束前最后一次提交必须 `[已测试]` 且门禁全绿
 - 依赖方向：Types → Config → Repo → Service → Runtime（禁止反向）

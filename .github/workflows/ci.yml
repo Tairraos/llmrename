@@ -21,8 +21,13 @@ jobs:
         with:
           node-version: 20
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - name: Install frontend devDeps
-        run: npm install --no-audit --no-fund
+        run: pnpm install --no-audit --no-fund
 
       - name: Run gate (fmt + clippy + test + node --check)
         run: ./scripts/check.sh
