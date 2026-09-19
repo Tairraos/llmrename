@@ -9,42 +9,16 @@
   <body>
     <header class="app-header">
       <h1>LLM Rename <span id="app-version" class="version-badge"></span></h1>
-      <p class="tagline">拖入图片或文件夹 · 视觉模型批量重命名 · 可撤销 / 重做</p>
-      <button id="btn-open-model" class="header-btn">⚙ 模型设置</button>
+      <p class="tagline">拖入图片或文件夹 · 视觉模型批量重命名 · 中文文件名 · 可撤销 / 重做</p>
+      <nav class="header-actions">
+        <button id="btn-open-template" class="header-btn">📝 模板设置</button>
+        <button id="btn-open-model" class="header-btn">⚙ 模型设置</button>
+        <button id="btn-open-logs" class="header-btn">📜 重命名日志</button>
+      </nav>
     </header>
 
     <main class="app-main">
-      <!-- ① 模板配置 -->
-      <section class="card" data-block="template">
-        <h2>重命名模板</h2>
-        <div class="row">
-          <label class="field grow">
-            <span>
-              模板（可用变量见下方推荐，例如
-              <code>{人物}_{场景}_{动作}_{日夜}</code>）
-            </span>
-            <input
-              id="template-pattern"
-              type="text"
-              placeholder="{人物}_{场景}_{动作}_{日夜}"
-            />
-          </label>
-          <button id="btn-ai-fill" class="primary">✨ 用视觉模型填充目标名</button>
-          <button id="btn-save-template" class="secondary">保存模板</button>
-          <span id="template-hint" class="hint" role="status"></span>
-        </div>
-        <div class="field">
-          <span>推荐变量（点击插入到模板）</span>
-          <div id="field-chips" class="chip-list"></div>
-        </div>
-        <div class="field">
-          <span>当前模板字段（输入即更新）</span>
-          <ul id="template-fields" class="chip-list"></ul>
-        </div>
-        <div id="template-preview" class="template-preview"></div>
-      </section>
-
-      <!-- ② 拖放区 -->
+      <!-- ① 拖放区 -->
       <section class="card" data-block="drop">
         <h2>拖入图片 / 文件夹</h2>
         <div id="drop-zone" class="drop-zone">
@@ -58,9 +32,14 @@
         <div id="target-summary" class="hint"></div>
       </section>
 
-      <!-- ③ 待重命名列表 -->
+      <!-- ② 待重命名列表 -->
       <section class="card" data-block="targets">
         <h2>待重命名</h2>
+        <div class="row template-bar">
+          <span class="hint">模板：</span>
+          <code id="template-summary">（未设置）</code>
+          <button id="btn-ai-fill" class="primary">✨ 用视觉模型填充目标名</button>
+        </div>
         <table class="assets-table">
           <thead>
             <tr>
@@ -80,21 +59,41 @@
           <span id="run-hint" class="hint" role="status"></span>
         </div>
       </section>
-
-      <!-- ④ 日志 -->
-      <section class="card" data-block="logs">
-        <h2>重命名日志</h2>
-        <div class="row">
-          <button id="btn-refresh-log" class="secondary">刷新</button>
-          <button id="btn-open-log" class="secondary">打开日志目录</button>
-          <span id="log-summary" class="hint"></span>
-        </div>
-        <ul id="log-list" class="log-list"></ul>
-      </section>
     </main>
 
-    <!-- ⑤ 模型设置 dialog -->
-    <dialog id="model-dialog" class="model-dialog">
+    <!-- ③ 模板设置 dialog -->
+    <dialog id="template-dialog" class="app-dialog">
+      <form method="dialog" id="template-form">
+        <h2>模板设置</h2>
+        <label class="field">
+          <span>
+            模板（示例 <code>{人物}_{场景}_{动作}_{日夜}</code>，值由视觉模型以中文提取）
+          </span>
+          <input
+            id="template-pattern"
+            type="text"
+            placeholder="{人物}_{场景}_{动作}_{日夜}"
+          />
+        </label>
+        <div class="field">
+          <span>推荐字段（点击插入到模板）</span>
+          <div id="field-chips" class="chip-list"></div>
+        </div>
+        <div class="field">
+          <span>当前模板字段（输入即更新）</span>
+          <ul id="template-fields" class="chip-list"></ul>
+        </div>
+        <div id="template-preview" class="template-preview"></div>
+        <div class="actions">
+          <button id="btn-save-template" class="primary">保存</button>
+          <button id="btn-cancel-template" class="secondary" type="button">取消</button>
+          <span id="template-hint" class="hint" role="status"></span>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- ④ 模型设置 dialog -->
+    <dialog id="model-dialog" class="app-dialog">
       <form method="dialog" id="model-form">
         <h2>模型设置</h2>
         <label class="field">
@@ -137,6 +136,22 @@
           <span id="config-hint" class="hint" role="status"></span>
         </div>
       </form>
+    </dialog>
+
+    <!-- ⑤ 重命名日志 dialog -->
+    <dialog id="logs-dialog" class="app-dialog">
+      <div class="dialog-body">
+        <h2>重命名日志</h2>
+        <div class="row">
+          <button id="btn-refresh-log" class="secondary">刷新</button>
+          <button id="btn-open-log" class="secondary">打开日志目录</button>
+          <span id="log-summary" class="hint"></span>
+        </div>
+        <ul id="log-list" class="log-list"></ul>
+        <div class="actions">
+          <button id="btn-close-logs" class="secondary" type="button">关闭</button>
+        </div>
+      </div>
     </dialog>
 
     <script type="module" src="./main.js"></script>

@@ -136,6 +136,24 @@ function showTemplateHint(text, kind = "") {
   el.className = `hint ${kind}`;
 }
 
+/* ---------------- 模板设置 dialog ---------------- */
+
+function openTemplateDialog() {
+  const cfg = window.App.config;
+  $("#template-pattern").value = cfg?.template?.pattern ?? "";
+  renderTemplateFields();
+  $("#template-dialog").showModal();
+}
+
+function closeTemplateDialog() {
+  $("#template-dialog").close();
+}
+
+function renderTemplateSummary() {
+  const pattern = window.App.config?.template?.pattern;
+  $("#template-summary").textContent = pattern || "（未设置，点「📝 模板设置」配置）";
+}
+
 /* ---------------- 模型配置 dialog ---------------- */
 
 function openModelDialog() {
@@ -206,6 +224,8 @@ async function saveTemplate() {
     await invoke("save_template_config", { pattern });
     window.App.config = { ...window.App.config, template: { pattern } };
     showTemplateHint("模板已保存", "ok");
+    renderTemplateSummary();
+    closeTemplateDialog();
   } catch (err) {
     showTemplateHint(String(err), "err");
   }
@@ -218,6 +238,7 @@ async function loadConfig() {
     // 回填已保存的模板（否则保存模型时会把空模板写进配置）
     $("#template-pattern").value = cfg?.template?.pattern ?? "";
     renderTemplateFields();
+    renderTemplateSummary();
   } catch (err) {
     showConfigHint(`读取配置失败：${err}`, "err");
   }
@@ -403,6 +424,15 @@ async function refreshLogs() {
   }
 }
 
+function openLogsDialog() {
+  $("#logs-dialog").showModal();
+  refreshLogs();
+}
+
+function closeLogsDialog() {
+  $("#logs-dialog").close();
+}
+
 async function openLogDir() {
   try {
     await invoke("open_log_dir");
@@ -436,14 +466,14 @@ function normalizeBaseUrl(s) {
 }
 
 const FIELD_EXAMPLES = {
-  人物: "woman",
+  人物: "女人",
   人数: "2",
-  场景: "street",
-  动作: "dancing",
-  季节: "summer",
-  造型: "hands_on_hips",
-  天气: "sunny",
-  日夜: "night",
+  场景: "街头",
+  动作: "跳舞",
+  季节: "夏天",
+  造型: "叉腰",
+  天气: "晴天",
+  日夜: "夜晚",
   date: "2026-09-18",
   time: "14-30-05",
   camera: "a7m4",
@@ -455,7 +485,7 @@ const FIELD_EXAMPLES = {
   author: "tairraos",
   event: "wedding",
 };
-const DEFAULT_EXAMPLE = "value";
+const DEFAULT_EXAMPLE = "值";
 
 // 推荐的中文字段（与后端 field_example 对应，视觉模型可从图片提取）
 const RECOMMENDED_FIELDS = ["人物", "人数", "场景", "动作", "季节", "造型", "天气", "日夜"];
@@ -493,6 +523,14 @@ function extractFields(pattern) {
 
 function bindEvents() {
   $("#btn-open-model").addEventListener("click", openModelDialog);
+  $("#btn-open-template").addEventListener("click", openTemplateDialog);
+  $("#btn-open-logs").addEventListener("click", openLogsDialog);
+  $("#btn-close-logs").addEventListener("click", closeLogsDialog);
+
+  // 模板 dialog 防误关（同模型 dialog：点遮罩/Esc/回车不关闭）
+  $("#template-form").addEventListener("submit", (e) => e.preventDefault());
+  $("#template-dialog").addEventListener("cancel", (e) => e.preventDefault());
+  $("#btn-cancel-template").addEventListener("click", closeTemplateDialog);
   $("#btn-save-config").addEventListener("click", (e) => {
     e.preventDefault();
     saveModelFromDialog();
