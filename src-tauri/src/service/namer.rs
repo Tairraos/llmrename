@@ -138,15 +138,15 @@ pub fn preview_guesses(fields: &[String]) -> HashMap<String, String> {
 
 fn field_example(field: &str) -> String {
     match field {
-        // 推荐的中文字段（视觉模型可从图片中提取）
-        "人物" => "woman".into(),
+        // 推荐的中文字段（视觉模型可从图片中提取，值为中文）
+        "人物" => "女人".into(),
         "人数" => "2".into(),
-        "场景" => "street".into(),
-        "动作" => "dancing".into(),
-        "季节" => "summer".into(),
-        "造型" => "hands_on_hips".into(),
-        "天气" => "sunny".into(),
-        "日夜" => "night".into(),
+        "场景" => "街头".into(),
+        "动作" => "跳舞".into(),
+        "季节" => "夏天".into(),
+        "造型" => "叉腰".into(),
+        "天气" => "晴天".into(),
+        "日夜" => "夜晚".into(),
         // 兼容旧英文字段
         "date" => "2026-09-18".into(),
         "time" => "14-30-05".into(),
@@ -158,7 +158,7 @@ fn field_example(field: &str) -> String {
         "version" => "v1".into(),
         "author" => "tairraos".into(),
         "event" => "wedding".into(),
-        _ => "value".into(),
+        _ => "值".into(),
     }
 }
 

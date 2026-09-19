@@ -1,27 +1,28 @@
-//! 给视觉模型的提示词（英文，稳定可审计）。
+//! 给视觉模型的提示词（中文输出，文件名值为中文短语）。
 //! 变更即提交，让模型行为可复现（见 docs/design/vision-model-contract.md）。
 
 use std::collections::HashSet;
 
-/// 系统提示词：约束只输出 JSON。
+/// 系统提示词：约束只输出 JSON，值用中文。
 pub fn system_prompt() -> &'static str {
-    "You are a meticulous photo asset naming assistant. \
-     You will be given an image and a filename. \
-     Extract the requested attributes from the image, and return ONLY a single JSON object \
-     (no markdown, no commentary, no surrounding text) where every key is one of the requested \
-     field names. Values must be short file-system-safe strings: lowercase, use underscores \
-     instead of spaces, no path separators, no slashes, no double quotes. \
-     If an attribute cannot be determined from the image, use the value \"unknown\". \
-     Never invent a value that contradicts the image."
+    "你是一位严谨的照片资产命名助手。\
+     你会收到一张图片和它的文件名。\
+     请从图片中提取所要求的属性，只返回一个 JSON 对象\
+     （不要 markdown、不要解释、不要任何额外文本），\
+     每个键都必须是要求的字段名之一。\
+     所有值必须是简短的中文短语，适合作为文件名的一部分：\
+     不含路径分隔符、斜杠、引号、冒号等文件系统非法字符。\
+     若某个属性无法从图片判断，值用 \"未知\"。\
+     绝不编造与图片矛盾的值。"
 }
 
 /// 用户提示词：说明要提取哪些字段。
 pub fn user_prompt(filename: &str, template: &str, fields: &[String]) -> String {
     let field_list = fields.join(", ");
     format!(
-        "Asset filename: {filename}\nRename template: {template}\n\n\
-         Extract exactly these field names as JSON keys: [{field_list}].\n\
-         Reply with only the JSON object."
+        "图片文件名：{filename}\n重命名模板：{template}\n\n\
+         请提取以下字段作为 JSON 的键：[{field_list}]。\n\
+         只回复 JSON 对象本身。"
     )
 }
 
