@@ -15,9 +15,12 @@ pnpm install
 # 本地开发运行（vite dev server + tauri dev）
 pnpm tauri dev
 
-# 构建发布（自动 bump 版本，默认只出 .app；加 --dmg 出 dmg；target/ 只保留 .app）
+# 构建发布（自动 bump 版本，默认只出 .app；加 --dmg 出 dmg；保留编译缓存，仅清理打包产物）
 ./scripts/release.sh
 ./scripts/release.sh --dmg
+
+# 释放构建缓存占用的磁盘空间（手动，脚本不自动清理）
+rm -rf target
 
 # 全量检查（门禁）：fmt + clippy + test + 前端语法检查
 pnpm check            # 等价 npx tauri build 前的本地门禁

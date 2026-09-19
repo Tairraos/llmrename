@@ -53,7 +53,7 @@ pnpm check            # 门禁：cargo fmt + clippy + test + node --check
 ./scripts/release.sh --dmg    # 同时出 .dmg
 ```
 
-产物在 `release/<version>/`（.app / .dmg / VERSION），`target/` 只保留 `.app`，构建中间件自动清理。版本号显示在窗口标题。
+产物在 `release/<version>/`（.app / .dmg / VERSION），`target/` 根保留 `.app`。编译缓存（`target/release`、`target/debug`）构建后保留以加速下次增量编译，需要释放空间时手动 `rm -rf target`。版本号显示在窗口标题。
 
 ### 流式集成测试（需要本地 LLM 服务）
 
