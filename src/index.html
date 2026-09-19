@@ -20,13 +20,13 @@
         <div class="row">
           <label class="field grow">
             <span>
-              模板（可用变量见右侧，例如
-              <code>{date}_{camera}_{scene}_{description}</code>）
+              模板（可用变量见下方推荐，例如
+              <code>{人物}_{场景}_{动作}_{日夜}</code>）
             </span>
             <input
               id="template-pattern"
               type="text"
-              placeholder="{date}_{scene}_{camera}_{description}"
+              placeholder="{人物}_{场景}_{动作}_{日夜}"
             />
           </label>
           <button id="btn-ai-fill" class="primary">✨ 用视觉模型填充目标名</button>
@@ -34,7 +34,11 @@
           <span id="template-hint" class="hint" role="status"></span>
         </div>
         <div class="field">
-          <span>可用字段（按字段名猜测类别，输入即更新）</span>
+          <span>推荐变量（点击插入到模板）</span>
+          <div id="field-chips" class="chip-list"></div>
+        </div>
+        <div class="field">
+          <span>当前模板字段（输入即更新）</span>
           <ul id="template-fields" class="chip-list"></ul>
         </div>
         <div id="template-preview" class="template-preview"></div>

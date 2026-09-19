@@ -11,21 +11,22 @@ pub fn render_plan(pattern: &str, fields_json: &str) -> String {
 }
 
 /// 用字段 map 渲染模板（预览用）。
+/// 按 char 迭代：花括号外的非 ASCII 字面量（如中文）原样保留。
 pub fn render(pattern: &str, map: &std::collections::HashMap<String, String>) -> String {
     let mut out = String::new();
-    let bytes = pattern.as_bytes();
+    let chars: Vec<char> = pattern.chars().collect();
     let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'{' {
-            if let Some(close_rel) = bytes[i + 1..].iter().position(|&b| b == b'}') {
-                let name = &pattern[i + 1..i + 1 + close_rel];
-                let val = map.get(name).map(|s| s.as_str()).unwrap_or("");
+    while i < chars.len() {
+        if chars[i] == '{' {
+            if let Some(close_rel) = chars[i + 1..].iter().position(|&c| c == '}') {
+                let name: String = chars[i + 1..i + 1 + close_rel].iter().collect();
+                let val = map.get(name.trim()).map(|s| s.as_str()).unwrap_or("");
                 out.push_str(&sanitize(val));
                 i += close_rel + 2;
                 continue;
             }
         }
-        out.push(bytes[i] as char);
+        out.push(chars[i]);
         i += 1;
     }
     out
@@ -89,5 +90,14 @@ mod tests {
         assert_eq!(sanitize("a/b\\c:d"), "abcd");
         assert_eq!(sanitize("ok name"), "ok_name");
         assert_eq!(sanitize("中文 名称"), "中文_名称");
+    }
+
+    #[test]
+    fn renders_chinese_fields_and_literals() {
+        let mut m = std::collections::HashMap::new();
+        m.insert("人物".into(), "woman".into());
+        m.insert("日夜".into(), "night".into());
+        // 花括号外的中文字面量原样保留（回归：字节渲染会产生乱码）
+        assert_eq!(render("{人物}_照_{日夜}", &m), "woman_照_night");
     }
 }

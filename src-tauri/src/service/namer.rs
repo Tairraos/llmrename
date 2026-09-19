@@ -107,20 +107,21 @@ fn explicit_target(from: &Path, target: &str, options: &RenameOptions) -> Result
 
 /// 以「字段名 → 推断值」渲染模板，把未知字段留空（预览用假数据）。
 /// 实际渲染（模型返回）在 vision 中完成，这里只用于预览展示。
+/// 按 char 迭代，花括号外的非 ASCII 字面量原样保留。
 pub fn preview_name(pattern: &str, guesses: &HashMap<String, String>) -> String {
     let mut out = String::new();
-    let bytes = pattern.as_bytes();
+    let chars: Vec<char> = pattern.chars().collect();
     let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'{' {
-            if let Some(close_rel) = bytes[i + 1..].iter().position(|&b| b == b'}') {
-                let name = &pattern[i + 1..i + 1 + close_rel];
-                out.push_str(guesses.get(name).map(|s| s.as_str()).unwrap_or("?"));
+    while i < chars.len() {
+        if chars[i] == '{' {
+            if let Some(close_rel) = chars[i + 1..].iter().position(|&c| c == '}') {
+                let name: String = chars[i + 1..i + 1 + close_rel].iter().collect();
+                out.push_str(guesses.get(name.trim()).map(|s| s.as_str()).unwrap_or("?"));
                 i += close_rel + 2;
                 continue;
             }
         }
-        out.push(bytes[i] as char);
+        out.push(chars[i]);
         i += 1;
     }
     out
@@ -137,6 +138,16 @@ pub fn preview_guesses(fields: &[String]) -> HashMap<String, String> {
 
 fn field_example(field: &str) -> String {
     match field {
+        // 推荐的中文字段（视觉模型可从图片中提取）
+        "人物" => "woman".into(),
+        "人数" => "2".into(),
+        "场景" => "street".into(),
+        "动作" => "dancing".into(),
+        "季节" => "summer".into(),
+        "造型" => "hands_on_hips".into(),
+        "天气" => "sunny".into(),
+        "日夜" => "night".into(),
+        // 兼容旧英文字段
         "date" => "2026-09-18".into(),
         "time" => "14-30-05".into(),
         "camera" => "a7m4".into(),
@@ -167,5 +178,12 @@ mod tests {
     fn preview_keeps_unknown_as_question() {
         let g = HashMap::new();
         assert_eq!(preview_name("a_{x}", &g), "a_?");
+    }
+
+    #[test]
+    fn preview_handles_chinese_fields() {
+        let mut g = HashMap::new();
+        g.insert("人物".to_string(), "woman".to_string());
+        assert_eq!(preview_name("{人物}_{场景}", &g), "woman_?");
     }
 }

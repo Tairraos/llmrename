@@ -436,6 +436,14 @@ function normalizeBaseUrl(s) {
 }
 
 const FIELD_EXAMPLES = {
+  人物: "woman",
+  人数: "2",
+  场景: "street",
+  动作: "dancing",
+  季节: "summer",
+  造型: "hands_on_hips",
+  天气: "sunny",
+  日夜: "night",
   date: "2026-09-18",
   time: "14-30-05",
   camera: "a7m4",
@@ -449,15 +457,34 @@ const FIELD_EXAMPLES = {
 };
 const DEFAULT_EXAMPLE = "value";
 
+// 推荐的中文字段（与后端 field_example 对应，视觉模型可从图片提取）
+const RECOMMENDED_FIELDS = ["人物", "人数", "场景", "动作", "季节", "造型", "天气", "日夜"];
+
+function renderFieldChips() {
+  $("#field-chips").innerHTML = RECOMMENDED_FIELDS.map(
+    (f) => `<button type="button" class="chip" data-field="${f}">{${f}}</button>`,
+  ).join("");
+}
+
+function insertFieldChip(field) {
+  const inp = $("#template-pattern");
+  const prefix = inp.value.trim() ? "_" : "";
+  inp.value = inp.value.trim() + prefix + `{${field}}`;
+  inp.dispatchEvent(new Event("input"));
+  inp.focus();
+}
+
 function extractFields(pattern) {
   const out = [];
-  const re = /\{([a-zA-Z0-9_]+)\}/g;
+  const re = /\{([^{}]+)\}/g;
   let m;
   const seen = new Set();
   while ((m = re.exec(pattern)) !== null) {
-    if (seen.has(m[1])) continue;
-    seen.add(m[1]);
-    out.push({ name: m[1], example: FIELD_EXAMPLES[m[1]] ?? DEFAULT_EXAMPLE });
+    const name = m[1].trim();
+    // 与后端 extract_fields 一致：字段名为 Unicode 字母数字（含中文）+ 下划线
+    if (!name || !/^[\p{L}\p{N}_]+$/u.test(name) || seen.has(name)) continue;
+    seen.add(name);
+    out.push({ name, example: FIELD_EXAMPLES[name] ?? DEFAULT_EXAMPLE });
   }
   return out;
 }
@@ -484,6 +511,10 @@ function bindEvents() {
   });
 
   $("#template-pattern").addEventListener("input", renderTemplateFields);
+  $("#field-chips").addEventListener("click", (e) => {
+    const chip = e.target.closest(".chip");
+    if (chip) insertFieldChip(chip.dataset.field);
+  });
   $("#btn-ai-fill").addEventListener("click", aiFillTargets);
 
   // 拖放
@@ -539,6 +570,7 @@ async function boot() {
   await loadVersion();
   await refreshLogs();
   await refreshHistory();
+  renderFieldChips();
   renderTemplateFields();
   renderTargets();
   renderLogs();

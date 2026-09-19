@@ -24,7 +24,8 @@ impl Default for ModelConfig {
     }
 }
 
-/// 重命名模板：{字段} 占位符模式，如 `{date}_{camera}_{scene}_{description}`。
+/// 重命名模板：{字段} 占位符模式，如 `{人物}_{场景}_{动作}_{日夜}`。
+/// 字段名支持 Unicode 字母数字（含中文）与下划线。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TemplateConfig {
     pub pattern: String,
@@ -33,7 +34,7 @@ pub struct TemplateConfig {
 impl Default for TemplateConfig {
     fn default() -> Self {
         Self {
-            pattern: "{date}_{camera}_{scene}_{description}".into(),
+            pattern: "{人物}_{场景}_{动作}_{日夜}".into(),
         }
     }
 }
@@ -84,6 +85,7 @@ pub struct AppConfig {
 }
 
 /// 从模板 pattern 中提取 {字段名} 列表（去重、保序）。
+/// 字段名为 Unicode 字母数字（含中文）与下划线的组合。
 pub fn extract_fields(pattern: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut seen = std::collections::HashSet::new();
@@ -95,7 +97,7 @@ pub fn extract_fields(pattern: &str) -> Vec<String> {
                 let name = &pattern[i + 1..i + 1 + close_rel];
                 let name = name.trim();
                 if !name.is_empty()
-                    && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+                    && name.chars().all(is_field_char)
                     && seen.insert(name.to_string())
                 {
                     out.push(name.to_string());
@@ -107,6 +109,11 @@ pub fn extract_fields(pattern: &str) -> Vec<String> {
         i += 1;
     }
     out
+}
+
+/// 字段名合法字符：Unicode 字母数字（含中文）或下划线。
+fn is_field_char(c: char) -> bool {
+    c.is_alphanumeric() || c == '_'
 }
 
 #[cfg(test)]
@@ -125,6 +132,29 @@ mod tests {
     fn ignores_malformed_placeholders() {
         assert_eq!(extract_fields("{date} {bad-name} {ok}"), vec!["date", "ok"]);
         assert_eq!(extract_fields("no fields"), Vec::<String>::new());
+    }
+
+    #[test]
+    fn extracts_chinese_fields() {
+        assert_eq!(
+            extract_fields("{人物}_{人数}x_{场景}_{动作}_{季节}_{造型}_{天气}_{日夜}"),
+            vec!["人物", "人数", "场景", "动作", "季节", "造型", "天气", "日夜"]
+        );
+        // 中文+英文混排、重复去重
+        assert_eq!(
+            extract_fields("{人物}_{scene}_{人物}"),
+            vec!["人物", "scene"]
+        );
+        // 含空格/连字符的占位符仍不视为字段
+        assert_eq!(extract_fields("{人物 名}"), Vec::<String>::new());
+    }
+
+    #[test]
+    fn default_template_uses_chinese_fields() {
+        assert_eq!(
+            TemplateConfig::default().pattern,
+            "{人物}_{场景}_{动作}_{日夜}"
+        );
     }
 
     #[test]
