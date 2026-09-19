@@ -23,17 +23,30 @@ fn data_dir(app: &AppHandle) -> Result<PathBuf> {
 }
 
 /// 只保存模型配置（与模板解耦：模板、选项保持不变）。
+/// 同时同步内存状态：后续命令（ai_fill_targets 等）读取的是已保存的配置。
 #[tauri::command]
-pub fn save_model_config(app: AppHandle, model: ModelConfig) -> Result<()> {
+pub fn save_model_config(
+    app: AppHandle,
+    model: ModelConfig,
+    state: State<'_, AppState>,
+) -> Result<()> {
     let dir = data_dir(&app)?;
-    config::save_model(&dir, &model)
+    config::save_model(&dir, &model)?;
+    state.config.lock().unwrap().model = model;
+    Ok(())
 }
 
-/// 只保存重命名模板（与模型配置解耦）。
+/// 只保存重命名模板（与模型配置解耦），并同步内存状态。
 #[tauri::command]
-pub fn save_template_config(app: AppHandle, pattern: String) -> Result<()> {
+pub fn save_template_config(
+    app: AppHandle,
+    pattern: String,
+    state: State<'_, AppState>,
+) -> Result<()> {
     let dir = data_dir(&app)?;
-    config::save_template(&dir, &pattern)
+    config::save_template(&dir, &pattern)?;
+    state.config.lock().unwrap().template.pattern = pattern;
+    Ok(())
 }
 
 /// 拉取 OpenAI 兼容服务的模型 id 列表（模型设置中的「⟳ 加载」按钮）。
@@ -51,11 +64,13 @@ pub async fn list_models(
     .await
 }
 
-/// 读取配置。
+/// 读取配置，并同步内存状态（启动后所有命令读到的都是已保存值）。
 #[tauri::command]
-pub fn load_config(app: AppHandle) -> Result<AppConfig> {
+pub fn load_config(app: AppHandle, state: State<'_, AppState>) -> Result<AppConfig> {
     let dir = data_dir(&app)?;
-    config::load(&dir)
+    let cfg = config::load(&dir)?;
+    *state.config.lock().unwrap() = cfg.clone();
+    Ok(cfg)
 }
 
 /// 扫描资产目录（不递归）。
