@@ -332,11 +332,25 @@ button.danger:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.28);
 }
 
-/* 拖放区 */
+/* 拖放区（小方块）+ 右侧大模型调试台 */
+.drop-console-row {
+  display: flex;
+  gap: 14px;
+  align-items: stretch;
+  margin-bottom: 10px;
+}
 .drop-zone {
+  width: 200px;
+  min-width: 200px;
+  height: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px;
   border: 2px dashed var(--border);
-  border-radius: 10px;
-  padding: 28px 16px;
+  border-radius: 6px;
   text-align: center;
   color: var(--muted);
   transition: border-color 0.15s, background 0.15s;
@@ -346,20 +360,55 @@ button.danger:hover:not(:disabled) {
   background: #eff6ff;
 }
 .drop-zone-title {
-  margin: 0 0 4px;
-  font-size: 15px;
+  margin: 0;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text);
 }
 .drop-zone-hint {
-  margin: 0 0 12px;
-  font-size: 12px;
+  margin: 0;
+  font-size: 11px;
 }
 .drop-zone-actions {
   display: flex;
-  justify-content: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
   margin: 0;
+}
+.console-view {
+  flex: 1;
+  height: 200px;
+  margin: 0;
+  padding: 10px 12px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #0f172a;
+  color: #cbd5e1;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.console-view .c-ts {
+  color: #64748b;
+}
+.console-view .c-info {
+  color: #93c5fd;
+}
+.console-view .c-ok {
+  color: #4ade80;
+}
+.console-view .c-err {
+  color: #f87171;
+}
+.console-view .c-dim {
+  color: #475569;
+}
+.console-view .c-file {
+  color: #a5f3fc;
 }
 
 /* 待重命名列表 */
@@ -410,22 +459,6 @@ button.danger:hover:not(:disabled) {
   line-height: 1;
 }
 
-/* 流式回显面板 */
-.stream-view {
-  margin: 10px 0 4px;
-  padding: 10px 12px;
-  max-height: 220px;
-  overflow-y: auto;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: #0f172a;
-  color: #a5f3fc;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  word-break: break-all;
-}
 
 /* 模板摘要行 */
 .template-bar {

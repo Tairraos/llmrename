@@ -18,16 +18,19 @@
     </header>
 
     <main class="app-main">
-      <!-- ① 拖放区 -->
+      <!-- ① 拖放 + 大模型调试台 -->
       <section class="card" data-block="drop">
-        <h2>拖入图片 / 文件夹</h2>
-        <div id="drop-zone" class="drop-zone">
-          <p class="drop-zone-title">把图片或文件夹拖到这里</p>
-          <p class="drop-zone-hint">拖入 N 个图片文件，或直接拖入文件夹（递归扫描）——窗口任意位置拖放均可</p>
-          <p class="drop-zone-actions">
-            <button id="btn-pick-files" type="button" class="secondary">选择图片</button>
-            <button id="btn-pick-dir" type="button" class="secondary">选择文件夹</button>
-          </p>
+        <h2>拖入图片 / 大模型调试台</h2>
+        <div class="drop-console-row">
+          <div id="drop-zone" class="drop-zone">
+            <p class="drop-zone-title">拖入图片 / 文件夹</p>
+            <p class="drop-zone-hint">窗口任意位置拖放均可</p>
+            <p class="drop-zone-actions">
+              <button id="btn-pick-files" type="button" class="secondary">选择图片</button>
+              <button id="btn-pick-dir" type="button" class="secondary">选择文件夹</button>
+            </p>
+          </div>
+          <pre id="console-view" class="console-view"><span class="c-dim">（大模型调试台：调用状态与流式输出会显示在这里）</span></pre>
         </div>
         <div id="target-summary" class="hint"></div>
       </section>
@@ -50,7 +53,6 @@
           </thead>
           <tbody id="targets-body"></tbody>
         </table>
-        <pre id="stream-view" class="stream-view" hidden></pre>
         <div class="actions">
           <button id="btn-clear-targets" class="secondary">清空列表</button>
           <button id="btn-execute" class="danger">开始重命名</button>

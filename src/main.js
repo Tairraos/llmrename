@@ -136,6 +136,28 @@ function showTemplateHint(text, kind = "") {
   el.className = `hint ${kind}`;
 }
 
+/* ---------------- 大模型调试台（console） ---------------- */
+
+function consoleAppend(html) {
+  const el = $("#console-view");
+  if (!el) return;
+  if (el.dataset.init !== "1") {
+    el.textContent = "";
+    el.dataset.init = "1";
+  }
+  el.insertAdjacentHTML("beforeend", html);
+  el.scrollTop = el.scrollHeight;
+}
+
+function consoleStatus(text, cls = "") {
+  const ts = new Date().toTimeString().slice(0, 8);
+  consoleAppend(`<span class="c-ts">[${ts}]</span><span class="${cls}"> ${escapeHtml(text)}</span>\n`);
+}
+
+function consoleFileHeader(filename) {
+  consoleAppend(`<span class="c-file">── ${escapeHtml(filename)} ──</span>\n`);
+}
+
 /* ---------------- 模板设置 dialog ---------------- */
 
 function openTemplateDialog() {
@@ -627,40 +649,34 @@ async function boot() {
     let streamPath = null;
     await listen("vision-stream", (e) => {
       const p = e.payload ?? {};
-      const view = $("#stream-view");
-      if (!view) return;
-      view.hidden = false;
       if (p.path !== streamPath) {
         streamPath = p.path;
-        view.textContent = `── ${p.filename ?? p.path} ──\n`;
+        consoleFileHeader(p.filename ?? p.path);
       }
-      if (p.delta) {
-        view.textContent += p.delta;
-        view.scrollTop = view.scrollHeight;
-      }
-      if (p.done) {
-        view.textContent += p.error ? `\n✗ ${p.error}\n` : `\n✓ 完成\n`;
-        view.scrollTop = view.scrollHeight;
-      }
+      // 模型流式输出（含思考过程字段）原样进调试台
+      if (p.delta) consoleAppend(escapeHtml(p.delta));
+      if (p.done && p.error) consoleStatus(p.error, "c-err");
     });
     await listen("vision-status", (e) => {
       const p = e.payload ?? {};
       switch (p.phase) {
         case "connecting":
+          consoleStatus(`正在连接大模型（${p.url ?? "?"}）…`, "c-info");
           showRunHint(`正在连接大模型（${p.url ?? "?"}）…`, "");
           break;
         case "extracting":
           showRunHint(`正在解析 ${p.filename ?? "?"}（模型输出中）…`, "");
           break;
         case "parsing":
+          consoleStatus(`正在解析 ${p.filename ?? "?"} 的模型返回…`, "c-info");
           showRunHint(`正在解析 ${p.filename ?? "?"} 的模型返回…`, "");
           break;
-        case "item-done":
-          showRunHint(
-            `[${p.index ?? "?"}/${p.total ?? "?"}] ${p.filename ?? "?"} ${p.ok ? "✓ 已填充" : "✗ 失败"}`,
-            p.ok ? "" : "err",
-          );
+        case "item-done": {
+          const line = `[${p.index ?? "?"}/${p.total ?? "?"}] ${p.filename ?? "?"} ${p.ok ? "✓ 已填充" : "✗ 失败"}${p.target ? ` → ${p.target}` : ""}`;
+          consoleStatus(line, p.ok ? "c-ok" : "c-err");
+          showRunHint(line, p.ok ? "" : "err");
           break;
+        }
       }
     });
     await listen("rename-progress", (e) => {
