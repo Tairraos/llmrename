@@ -1,7 +1,7 @@
 //! 配置层：AppConfig 的加载 / 保存 / 校验。
 //! 文件位于应用数据目录（仓库外），由 runtime 层传入路径。
 
-use crate::types::{AppConfig, AppError, Result};
+use crate::types::{AppConfig, AppError, ModelConfig, Result, TemplateConfig};
 
 pub const CONFIG_FILE: &str = "config.json";
 
@@ -17,9 +17,29 @@ pub fn load(dir: &std::path::Path) -> Result<AppConfig> {
         .map_err(|e| AppError::config(format!("配置文件格式错误：{e}（{}）", path.display())))
 }
 
-/// 保存配置：先校验，再原子写入（先写临时文件再改名）。
+/// 保存完整配置：先校验，再原子写入（先写临时文件再改名）。
 pub fn save(dir: &std::path::Path, cfg: &AppConfig) -> Result<()> {
     validate(cfg)?;
+    write_cfg(dir, cfg)
+}
+
+/// 只保存模型配置：合并进现有配置（模板与选项保持不变），仅校验模型部分。
+pub fn save_model(dir: &std::path::Path, model: &ModelConfig) -> Result<()> {
+    validate_model(model)?;
+    let mut cfg = load(dir)?;
+    cfg.model = model.clone();
+    write_cfg(dir, &cfg)
+}
+
+/// 只保存模板：合并进现有配置，仅校验模板部分。
+pub fn save_template(dir: &std::path::Path, pattern: &str) -> Result<()> {
+    validate_template(pattern)?;
+    let mut cfg = load(dir)?;
+    cfg.template.pattern = pattern.trim().to_string();
+    write_cfg(dir, &cfg)
+}
+
+fn write_cfg(dir: &std::path::Path, cfg: &AppConfig) -> Result<()> {
     std::fs::create_dir_all(dir)
         .map_err(|e| AppError::config(format!("无法创建配置目录：{e}（{}）", dir.display())))?;
     let json = serde_json::to_string_pretty(cfg)
@@ -37,18 +57,29 @@ pub fn new_dir(base: &std::path::Path) -> Result<std::path::PathBuf> {
 }
 
 fn validate(cfg: &AppConfig) -> Result<()> {
-    if cfg.model.base_url.trim().is_empty() {
+    validate_model(&cfg.model)?;
+    validate_template(&cfg.template.pattern)
+}
+
+/// 模型部分校验（与模板解耦：保存模型不要求模板非空）。
+fn validate_model(model: &ModelConfig) -> Result<()> {
+    if model.base_url.trim().is_empty() {
         return Err(AppError::config(
             "base_url 不能为空（如 https://api.openai.com/v1）",
         ));
     }
-    if cfg.model.model.trim().is_empty() {
+    if model.model.trim().is_empty() {
         return Err(AppError::config("模型名不能为空（如 gpt-4o）"));
     }
-    if cfg.model.timeout_secs < 1 || cfg.model.timeout_secs > 3600 {
+    if model.timeout_secs < 1 || model.timeout_secs > 3600 {
         return Err(AppError::config("超时秒数需在 1–3600 之间"));
     }
-    if cfg.template.pattern.trim().is_empty() {
+    Ok(())
+}
+
+/// 模板部分校验。
+fn validate_template(pattern: &str) -> Result<()> {
+    if pattern.trim().is_empty() {
         return Err(AppError::template("模板不能为空，使用 {字段} 占位符"));
     }
     Ok(())
@@ -90,5 +121,54 @@ mod tests {
         let mut cfg = AppConfig::default();
         cfg.model.model = "".into();
         assert!(save(dir.path(), &cfg).is_err());
+    }
+
+    #[test]
+    fn save_model_keeps_template_even_if_template_empty() {
+        // 回归：模型设置里保存不应被模板校验拦住（模板可为空/未配置）
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = ModelConfig::default();
+        model.model = "gpt-4o-mini".into();
+        save_model(dir.path(), &model).unwrap();
+        let back = load(dir.path()).unwrap();
+        assert_eq!(back.model, model);
+        assert_eq!(back.template, TemplateConfig::default());
+    }
+
+    #[test]
+    fn save_model_preserves_existing_template_and_options() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut cfg = AppConfig::default();
+        cfg.template.pattern = "{人物}_{场景}".into();
+        cfg.options.blacklist = vec!["bad".into()];
+        save(dir.path(), &cfg).unwrap();
+
+        let mut model = ModelConfig::default();
+        model.api_key = "sk-x".into();
+        save_model(dir.path(), &model).unwrap();
+
+        let back = load(dir.path()).unwrap();
+        assert_eq!(back.model.api_key, "sk-x");
+        assert_eq!(back.template.pattern, "{人物}_{场景}");
+        assert_eq!(back.options.blacklist, vec!["bad".to_string()]);
+    }
+
+    #[test]
+    fn save_model_still_validates_model() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = ModelConfig::default();
+        model.base_url = "  ".into();
+        assert!(save_model(dir.path(), &model).is_err());
+    }
+
+    #[test]
+    fn save_template_updates_only_pattern() {
+        let dir = tempfile::tempdir().unwrap();
+        save_template(dir.path(), "  {人物}_{日夜}  ").unwrap();
+        let back = load(dir.path()).unwrap();
+        assert_eq!(back.template.pattern, "{人物}_{日夜}");
+        assert_eq!(back.model, ModelConfig::default());
+        // 空模板仍被拒绝
+        assert!(save_template(dir.path(), "   ").is_err());
     }
 }

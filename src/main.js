@@ -130,6 +130,12 @@ function showConfigHint(text, kind = "") {
   el.className = `hint ${kind}`;
 }
 
+function showTemplateHint(text, kind = "") {
+  const el = $("#template-hint");
+  el.textContent = text;
+  el.className = `hint ${kind}`;
+}
+
 /* ---------------- 模型配置 dialog ---------------- */
 
 function openModelDialog() {
@@ -147,30 +153,31 @@ function closeModelDialog() {
   $("#model-dialog").close();
 }
 
-async function saveConfigFromDialog() {
-  const cfg = {
-    model: {
-      base_url: normalizeBaseUrl($("#model-base-url").value.trim()),
-      api_key: $("#model-api-key").value.trim(),
-      model: $("#model-name").value.trim() || "gpt-4o",
-      timeout_secs: Number($("#model-timeout").value) || 60,
-    },
-    template: {
-      pattern: $("#template-pattern").value.trim(),
-    },
-    options: {
-      extensions: ["jpg", "jpeg", "png", "webp", "gif", "bmp", "tiff"],
-      blacklist: [],
-      allowed_suffixes: [".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tiff"],
-    },
+async function saveModelFromDialog() {
+  const model = {
+    base_url: normalizeBaseUrl($("#model-base-url").value.trim()),
+    api_key: $("#model-api-key").value.trim(),
+    model: $("#model-name").value.trim() || "gpt-4o",
+    timeout_secs: Number($("#model-timeout").value) || 60,
   };
   try {
-    await invoke("save_config", { config: cfg });
-    window.App.config = cfg;
-    showConfigHint("配置已保存", "ok");
+    await invoke("save_model_config", { model });
+    window.App.config = { ...window.App.config, model };
+    showConfigHint("模型配置已保存", "ok");
     closeModelDialog();
   } catch (err) {
     showConfigHint(String(err), "err");
+  }
+}
+
+async function saveTemplate() {
+  const pattern = $("#template-pattern").value.trim();
+  try {
+    await invoke("save_template_config", { pattern });
+    window.App.config = { ...window.App.config, template: { pattern } };
+    showTemplateHint("模板已保存", "ok");
+  } catch (err) {
+    showTemplateHint(String(err), "err");
   }
 }
 
@@ -178,6 +185,8 @@ async function loadConfig() {
   try {
     const cfg = await invoke("load_config");
     window.App.config = cfg;
+    // 回填已保存的模板（否则保存模型时会把空模板写进配置）
+    $("#template-pattern").value = cfg?.template?.pattern ?? "";
     renderTemplateFields();
   } catch (err) {
     showConfigHint(`读取配置失败：${err}`, "err");
@@ -429,9 +438,10 @@ function bindEvents() {
   $("#btn-open-model").addEventListener("click", openModelDialog);
   $("#btn-save-config").addEventListener("click", (e) => {
     e.preventDefault();
-    saveConfigFromDialog();
+    saveModelFromDialog();
   });
   $("#btn-cancel-config").addEventListener("click", closeModelDialog);
+  $("#btn-save-template").addEventListener("click", saveTemplate);
   $("#model-dialog").addEventListener("click", (e) => {
     if (e.target === $("#model-dialog")) closeModelDialog();
   });

@@ -13,7 +13,8 @@ pub fn run() {
     tauri::Builder::default()
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
-            runtime::commands::save_config,
+            runtime::commands::save_model_config,
+            runtime::commands::save_template_config,
             runtime::commands::load_config,
             runtime::commands::scan_assets,
             runtime::commands::preview_rename,

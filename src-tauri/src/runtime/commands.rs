@@ -8,7 +8,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use crate::config;
 use crate::repo;
 use crate::service;
-use crate::types::{AppConfig, AppError, AssetEntry, HistoryStatus, LogEntry, RenameItem, Result};
+use crate::types::{AppConfig, AppError, AssetEntry, HistoryStatus, LogEntry, ModelConfig, RenameItem, Result};
 use crate::AppState;
 
 /// 应用数据目录（config.json / rename_log.jsonl 所在）。
@@ -20,11 +20,18 @@ fn data_dir(app: &AppHandle) -> Result<PathBuf> {
     config::new_dir(&base)
 }
 
-/// 保存配置。
+/// 只保存模型配置（与模板解耦：模板、选项保持不变）。
 #[tauri::command]
-pub fn save_config(app: AppHandle, config: AppConfig) -> Result<()> {
+pub fn save_model_config(app: AppHandle, model: ModelConfig) -> Result<()> {
     let dir = data_dir(&app)?;
-    config::save(&dir, &config)
+    config::save_model(&dir, &model)
+}
+
+/// 只保存重命名模板（与模型配置解耦）。
+#[tauri::command]
+pub fn save_template_config(app: AppHandle, pattern: String) -> Result<()> {
+    let dir = data_dir(&app)?;
+    config::save_template(&dir, &pattern)
 }
 
 /// 读取配置。
