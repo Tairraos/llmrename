@@ -6,6 +6,7 @@ pub mod config;
 pub mod error;
 pub mod history;
 pub mod log;
+pub mod model;
 pub mod rename;
 
 pub use asset::*;
@@ -13,4 +14,5 @@ pub use config::*;
 pub use error::*;
 pub use history::*;
 pub use log::*;
+pub use model::*;
 pub use rename::*;

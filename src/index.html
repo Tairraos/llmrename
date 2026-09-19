@@ -101,10 +101,22 @@
           <span>API Key</span>
           <input id="model-api-key" type="password" placeholder="sk-..." />
         </label>
-        <label class="field">
-          <span>模型</span>
-          <input id="model-name" type="text" placeholder="gpt-4o" />
-        </label>
+        <div class="field">
+          <span>模型（点 ⟳ 从 API 拉取可用列表）</span>
+          <span class="input-row">
+            <input id="model-name" type="text" placeholder="gpt-4o" />
+            <button
+              type="button"
+              id="btn-load-models"
+              class="icon-btn"
+              title="从 API 拉取可用模型列表"
+              aria-label="加载模型列表"
+            >
+              ⟳
+            </button>
+          </span>
+          <select id="model-select" class="model-select" hidden></select>
+        </div>
         <label class="field">
           <span>超时（秒）</span>
           <input id="model-timeout" type="number" min="10" max="600" value="60" />

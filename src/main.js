@@ -153,6 +153,36 @@ function closeModelDialog() {
   $("#model-dialog").close();
 }
 
+/* ---------------- 模型列表加载（⟳） ---------------- */
+
+async function loadModels() {
+  const base_url = normalizeBaseUrl($("#model-base-url").value.trim());
+  const api_key = $("#model-api-key").value.trim();
+  const timeout_secs = Number($("#model-timeout").value) || 60;
+  if (!hasTauri()) {
+    showConfigHint("浏览器模式不支持调用后端", "err");
+    return;
+  }
+  const btn = $("#btn-load-models");
+  btn.disabled = true;
+  showConfigHint("正在获取模型列表…", "");
+  try {
+    const models = await invoke("list_models", { baseUrl: base_url, apiKey: api_key, timeoutSecs: timeout_secs });
+    const sel = $("#model-select");
+    sel.innerHTML =
+      `<option value="">— 共 ${models.length} 个模型，点选填入 —</option>` +
+      models.map((m) => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join("");
+    sel.hidden = false;
+    sel.value = $("#model-name").value.trim();
+    showConfigHint(`已获取 ${models.length} 个模型，下拉选择即可填入`, "ok");
+  } catch (err) {
+    $("#model-select").hidden = true;
+    showConfigHint(String(err), "err");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 async function saveModelFromDialog() {
   const model = {
     base_url: normalizeBaseUrl($("#model-base-url").value.trim()),
@@ -442,6 +472,13 @@ function bindEvents() {
   });
   $("#btn-cancel-config").addEventListener("click", closeModelDialog);
   $("#btn-save-template").addEventListener("click", saveTemplate);
+  $("#btn-load-models").addEventListener("click", (e) => {
+    e.preventDefault();
+    loadModels();
+  });
+  $("#model-select").addEventListener("change", (e) => {
+    if (e.target.value) $("#model-name").value = e.target.value;
+  });
   $("#model-dialog").addEventListener("click", (e) => {
     if (e.target === $("#model-dialog")) closeModelDialog();
   });

@@ -378,6 +378,31 @@ button.danger:hover:not(:disabled) {
   margin-bottom: 12px;
 }
 
+/* 输入框 + 图标按钮（模型列表加载） */
+.input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.input-row input {
+  flex: 1;
+}
+.icon-btn {
+  padding: 7px 11px;
+  font-size: 15px;
+  line-height: 1;
+}
+.model-select {
+  margin-top: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  background: #fff;
+  color: var(--text);
+  width: 100%;
+}
+
 /* 流式回显面板 */
 .stream-view {
   margin: 10px 0 4px;

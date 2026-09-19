@@ -8,7 +8,9 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use crate::config;
 use crate::repo;
 use crate::service;
-use crate::types::{AppConfig, AppError, AssetEntry, HistoryStatus, LogEntry, ModelConfig, RenameItem, Result};
+use crate::types::{
+    AppConfig, AppError, AssetEntry, HistoryStatus, LogEntry, ModelConfig, RenameItem, Result,
+};
 use crate::AppState;
 
 /// 应用数据目录（config.json / rename_log.jsonl 所在）。
@@ -32,6 +34,21 @@ pub fn save_model_config(app: AppHandle, model: ModelConfig) -> Result<()> {
 pub fn save_template_config(app: AppHandle, pattern: String) -> Result<()> {
     let dir = data_dir(&app)?;
     config::save_template(&dir, &pattern)
+}
+
+/// 拉取 OpenAI 兼容服务的模型 id 列表（模型设置中的「⟳ 加载」按钮）。
+#[tauri::command]
+pub async fn list_models(
+    base_url: String,
+    api_key: String,
+    timeout_secs: Option<u64>,
+) -> Result<Vec<String>> {
+    service::models::list_models(
+        &base_url,
+        &api_key,
+        timeout_secs.unwrap_or(30).clamp(1, 3600),
+    )
+    .await
 }
 
 /// 读取配置。

@@ -1,7 +1,7 @@
 //! 配置层：AppConfig 的加载 / 保存 / 校验。
 //! 文件位于应用数据目录（仓库外），由 runtime 层传入路径。
 
-use crate::types::{AppConfig, AppError, ModelConfig, Result, TemplateConfig};
+use crate::types::{AppConfig, AppError, ModelConfig, Result};
 
 pub const CONFIG_FILE: &str = "config.json";
 
@@ -127,24 +127,35 @@ mod tests {
     fn save_model_keeps_template_even_if_template_empty() {
         // 回归：模型设置里保存不应被模板校验拦住（模板可为空/未配置）
         let dir = tempfile::tempdir().unwrap();
-        let mut model = ModelConfig::default();
-        model.model = "gpt-4o-mini".into();
+        let model = ModelConfig {
+            model: "gpt-4o-mini".into(),
+            ..Default::default()
+        };
         save_model(dir.path(), &model).unwrap();
         let back = load(dir.path()).unwrap();
         assert_eq!(back.model, model);
-        assert_eq!(back.template, TemplateConfig::default());
+        assert_eq!(back.template, crate::types::TemplateConfig::default());
     }
 
     #[test]
     fn save_model_preserves_existing_template_and_options() {
         let dir = tempfile::tempdir().unwrap();
-        let mut cfg = AppConfig::default();
-        cfg.template.pattern = "{人物}_{场景}".into();
-        cfg.options.blacklist = vec!["bad".into()];
+        let cfg = AppConfig {
+            template: crate::types::TemplateConfig {
+                pattern: "{人物}_{场景}".into(),
+            },
+            options: crate::types::RenameOptions {
+                blacklist: vec!["bad".into()],
+                ..Default::default()
+            },
+            ..Default::default()
+        };
         save(dir.path(), &cfg).unwrap();
 
-        let mut model = ModelConfig::default();
-        model.api_key = "sk-x".into();
+        let model = ModelConfig {
+            api_key: "sk-x".into(),
+            ..Default::default()
+        };
         save_model(dir.path(), &model).unwrap();
 
         let back = load(dir.path()).unwrap();
@@ -156,8 +167,10 @@ mod tests {
     #[test]
     fn save_model_still_validates_model() {
         let dir = tempfile::tempdir().unwrap();
-        let mut model = ModelConfig::default();
-        model.base_url = "  ".into();
+        let model = ModelConfig {
+            base_url: "  ".into(),
+            ..Default::default()
+        };
         assert!(save_model(dir.path(), &model).is_err());
     }
 

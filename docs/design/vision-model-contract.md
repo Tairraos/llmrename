@@ -6,7 +6,22 @@
 
 - **默认**：OpenAI Chat Completions HTTP API（`https://api.openai.com/v1/chat/completions`）。
 - **兼容**：任何实现了 OpenAI Chat Completions JSON 协议的端点（vLLM / OneAPI / 代理），通过 `base_url`（可含 `/v1`）配置。
+- **模型发现**：`GET {base_url}/models`（OpenAI List Models 协议），供模型设置 dialog 的「⟳ 加载」按钮拉取可选模型；实现见 `service/models.rs`。
 - **当前不做**：多模态流式、tools/function-calling、本地模型进程调用。
+
+### 1.1 模型列表契约（GET /models）
+
+```
+GET {base_url}/models
+Authorization: Bearer {api_key}   # api_key 为空时不带该头（本地服务常免鉴权）
+
+200 OK
+{ "object": "list", "data": [ { "id": "gpt-4o", ... }, ... ] }
+```
+
+- 只取 `data[].id`，排序去重后返回；其余字段忽略。
+- 非 2xx 时透传服务端 `error.message`；响应不是合法 JSON 时报错并附 120 字符片段。
+- 超时独立于 chat 调用，前端未传时默认 30s（clamp 1–3600）。
 
 ## 2. 请求构造
 

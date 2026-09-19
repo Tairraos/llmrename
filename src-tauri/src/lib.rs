@@ -16,6 +16,7 @@ pub fn run() {
             runtime::commands::save_model_config,
             runtime::commands::save_template_config,
             runtime::commands::load_config,
+            runtime::commands::list_models,
             runtime::commands::scan_assets,
             runtime::commands::preview_rename,
             runtime::commands::collect_targets,
