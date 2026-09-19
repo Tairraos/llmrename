@@ -191,16 +191,21 @@ fn finish(
 fn apply_chunk(payload: &str, on_event: &mut VisionEventCallback<'_>) -> Result<String> {
     let chunk: ChatChunk = serde_json::from_str(payload)
         .map_err(|e| AppError::vision(format!("解析流式 chunk 失败：{e}（片段：{payload}）")))?;
-    let mut delta_text = String::new();
+    let mut acc = String::new();
     if let Some(choice) = chunk.choices.into_iter().next() {
         if let Some(t) = choice.delta.content {
             if !t.is_empty() {
                 on_event(VisionEvent::Delta(t.clone()));
-                delta_text = t;
+                acc = t;
+            }
+        } else if let Some(r) = choice.delta.reasoning_content {
+            // 思考过程：仅回显给前端调试台，不进入累计内容（不参与 JSON 解析）
+            if !r.is_empty() {
+                on_event(VisionEvent::Delta(r));
             }
         }
     }
-    Ok(delta_text)
+    Ok(acc)
 }
 
 fn parse_content(resp: ChatResponse) -> Result<String> {
@@ -294,6 +299,15 @@ mod tests {
         // 空增量不回调
         apply_chunk(r#"{"choices":[{"delta":{"content":""}}]}"#, &mut cb).unwrap();
         assert_eq!(got.lock().unwrap().len(), 1);
+        // 思考过程：仅回显，不进入累计内容
+        let text3 = apply_chunk(
+            r#"{"choices":[{"delta":{"reasoning_content":"thinking..."}}]}"#,
+            &mut cb,
+        )
+        .unwrap();
+        assert_eq!(text3, "");
+        assert_eq!(got.lock().unwrap().len(), 2);
+        assert_eq!(got.lock().unwrap()[1], "thinking...");
     }
 
     /// 真实服务冒烟（不入 CI）：LLMRENAME_TEST_KEY=<本地key> cargo test -- --ignored

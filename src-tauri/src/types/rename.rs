@@ -53,6 +53,9 @@ pub struct ChatDeltaChoice {
 pub struct ChatDelta {
     #[serde(default)]
     pub content: Option<String>,
+    /// 部分兼容端点的思考/推理字段（仅回显给前端，不参与 JSON 解析）
+    #[serde(default)]
+    pub reasoning_content: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
