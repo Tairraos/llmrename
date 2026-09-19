@@ -106,9 +106,15 @@
           <input id="model-api-key" type="password" placeholder="sk-..." />
         </label>
         <div class="field">
-          <span>模型（点 ⟳ 从 API 拉取可用列表）</span>
+          <span>模型（可下拉选择或直接输入；⟳ 从 API 拉取列表）</span>
           <span class="input-row">
-            <input id="model-name" type="text" placeholder="gpt-4o" />
+            <input
+              id="model-name"
+              type="text"
+              list="model-options"
+              placeholder="gpt-4o"
+              autocomplete="off"
+            />
             <button
               type="button"
               id="btn-load-models"
@@ -119,7 +125,7 @@
               ⟳
             </button>
           </span>
-          <select id="model-select" class="model-select" hidden></select>
+          <datalist id="model-options"></datalist>
         </div>
         <label class="field">
           <span>超时（秒）</span>
