@@ -439,10 +439,21 @@ button.danger:hover:not(:disabled) {
   font-size: 12px;
   word-break: break-all;
 }
-.dialog-body {
-  display: flex;
-  flex-direction: column;
+/* 日志 dialog：确定大小，日志内容区固定高度、超出滚动 */
+#logs-dialog {
+  width: 660px;
+  max-width: 92vw;
+  height: 540px;
+  max-height: 86vh;
+  padding: 20px 24px;
 }
-.dialog-body .log-list {
+#logs-dialog .dialog-body {
+  height: 100%;
+  overflow: hidden;
+}
+#logs-dialog .dialog-body .log-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
   margin-bottom: 12px;
 }
