@@ -32,6 +32,8 @@ pub struct HistoryStore {
     redo: Vec<HistoryOp>,
     cap: usize,
     next_id: u64,
+    /// 当前撤销/重做聚焦的文件 id：撤销延续同一文件的链，而不是跨文件交错
+    focus: Option<u64>,
 }
 
 impl Default for HistoryStore {
@@ -47,6 +49,7 @@ impl HistoryStore {
             redo: Vec::new(),
             cap: cap.max(1),
             next_id: 1,
+            focus: None,
         }
     }
 
@@ -74,6 +77,7 @@ impl HistoryStore {
             to: to.to_path_buf(),
         });
         self.redo.clear();
+        self.focus = None;
 
         // 该文件记录数
         let count = self.undo.iter().filter(|op| op.id == id).count();
@@ -94,16 +98,29 @@ impl HistoryStore {
     }
 
     /// 撤销最近一次操作：返回 (需改名的两个路径 to, from)，调用方执行 rename(to → from)。
-    /// 无可撤销时返回 None。
+    ///
+    /// 撤销是「按文件」的：一旦开始撤销某个文件，后续撤销会延续同一文件的链
+    /// （该文件的所有历史版本回溯完之后，才轮到其它文件最近的操作）。
     pub fn undo(&mut self) -> Option<(PathBuf, PathBuf)> {
-        let op = self.undo.pop()?;
+        let len = self.undo.len();
+        if len == 0 {
+            return None;
+        }
+        let pos = self
+            .focus
+            .and_then(|id| self.undo.iter().rposition(|op| op.id == id))
+            .unwrap_or(len - 1);
+        let op = self.undo.remove(pos);
+        self.focus = Some(op.id);
         self.redo.push(op.clone());
         Some((op.to, op.from))
     }
 
     /// 重做最近一次撤销：返回 (from, to)，调用方执行 rename(from → to)。
+    /// 与撤销对称：重做也按文件连续进行。
     pub fn redo(&mut self) -> Option<(PathBuf, PathBuf)> {
         let op = self.redo.pop()?;
+        self.focus = Some(op.id);
         self.undo.push(op.clone());
         Some((op.from, op.to))
     }
@@ -216,6 +233,40 @@ mod tests {
             }
         }
         assert_eq!(undone_a0, 0, "被裁掉的 a 最旧记录不应再被撤销到");
+    }
+
+    #[test]
+    fn undo_continues_same_file_before_others() {
+        let mut h = HistoryStore::default();
+        h.record(&p("a.jpg"), &p("a1.jpg"));
+        h.record(&p("b.jpg"), &p("b1.jpg"));
+        h.record(&p("a1.jpg"), &p("a2.jpg"));
+
+        // 第一次撤销：最近的一次（a1→a2）
+        let (f, t) = h.undo().unwrap();
+        assert_eq!((f, t), (p("a2.jpg"), p("a1.jpg")));
+        // 第二次撤销：延续 a 文件的链（a→a1），而不是 b 的记录
+        let (f, t) = h.undo().unwrap();
+        assert_eq!((f, t), (p("a1.jpg"), p("a.jpg")));
+        // 第三次：a 链已回溯完，才轮到 b
+        let (f, t) = h.undo().unwrap();
+        assert_eq!((f, t), (p("b1.jpg"), p("b.jpg")));
+    }
+
+    #[test]
+    fn redo_symmetric_per_file() {
+        let mut h = HistoryStore::default();
+        h.record(&p("a.jpg"), &p("a1.jpg"));
+        h.record(&p("b.jpg"), &p("b1.jpg"));
+        h.record(&p("a1.jpg"), &p("a2.jpg"));
+
+        h.undo().unwrap();
+        h.undo().unwrap();
+        // 重做也按文件：先 a2←，再 a1←
+        let (f, t) = h.redo().unwrap();
+        assert_eq!((f, t), (p("a.jpg"), p("a1.jpg")));
+        let (f, t) = h.redo().unwrap();
+        assert_eq!((f, t), (p("a1.jpg"), p("a2.jpg")));
     }
 
     #[test]
