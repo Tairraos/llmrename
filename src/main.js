@@ -322,7 +322,7 @@ async function aiFillTargets() {
     return;
   }
   setRunning(true);
-  showRunHint("视觉模型填充中，请稍候…", "");
+  showRunHint(`开始填充目标名：共 ${window.App.targets.length} 个文件…`, "");
   try {
     const items = window.App.targets.map((t) => ({ path: t.path, target: t.target }));
     const filled = await invoke("ai_fill_targets", { items, pattern });
@@ -630,6 +630,26 @@ async function boot() {
       if (p.done) {
         view.textContent += p.error ? `\n✗ ${p.error}\n` : `\n✓ 完成\n`;
         view.scrollTop = view.scrollHeight;
+      }
+    });
+    await listen("vision-status", (e) => {
+      const p = e.payload ?? {};
+      switch (p.phase) {
+        case "connecting":
+          showRunHint(`正在连接大模型（${p.url ?? "?"}）…`, "");
+          break;
+        case "extracting":
+          showRunHint(`正在解析 ${p.filename ?? "?"}（模型输出中）…`, "");
+          break;
+        case "parsing":
+          showRunHint(`正在解析 ${p.filename ?? "?"} 的模型返回…`, "");
+          break;
+        case "item-done":
+          showRunHint(
+            `[${p.index ?? "?"}/${p.total ?? "?"}] ${p.filename ?? "?"} ${p.ok ? "✓ 已填充" : "✗ 失败"}`,
+            p.ok ? "" : "err",
+          );
+          break;
       }
     });
     await listen("rename-progress", (e) => {

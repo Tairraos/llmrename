@@ -116,8 +116,10 @@ pub async fn collect_targets(
 
 /// 视觉模型填充目标名：对每张图提取字段 → 渲染模板 → 返回「路径 → 目标名」。
 ///
-/// 模型流式增量通过 `vision-stream` 事件实时推给前端回显：
-/// `{ path, filename, delta, done, error }`；`done=true` 表示该文件处理结束。
+/// 进度通过两类事件推给前端：
+/// - `vision-status`：分阶段状态 `{ phase, path, filename, index, total, url?, ok? }`
+///   （connecting / extracting / parsing / item-done）
+/// - `vision-stream`：流式增量回显 `{ path, filename, delta, done, error }`
 #[tauri::command]
 pub async fn ai_fill_targets(
     app: AppHandle,
@@ -126,30 +128,61 @@ pub async fn ai_fill_targets(
     state: State<'_, AppState>,
 ) -> Result<Vec<RenameItem>> {
     let model = state.config.lock().unwrap().model.clone();
-    let mut out = Vec::with_capacity(items.len());
-    for it in &items {
+    let total = items.len();
+    let mut out = Vec::with_capacity(total);
+    for (idx, it) in items.iter().enumerate() {
         let path = PathBuf::from(&it.path);
         let filename = path
             .file_name()
             .map(|f| f.to_string_lossy().into_owned())
             .unwrap_or_default();
+        let index = idx + 1;
 
         let event_path = it.path.clone();
         let event_filename = filename.clone();
-        let mut on_delta = |delta: &str| {
-            let _ = app.emit(
-                "vision-stream",
-                serde_json::json!({
-                    "path": event_path,
-                    "filename": event_filename,
-                    "delta": delta,
-                    "done": false,
-                    "error": null,
-                }),
-            );
+        let mut seen_delta = false;
+        let mut on_event = |ev: service::vision::VisionEvent| {
+            let emit_status = |phase: &str, url: Option<String>, ok: Option<bool>| {
+                let _ = app.emit(
+                    "vision-status",
+                    serde_json::json!({
+                        "phase": phase,
+                        "path": event_path,
+                        "filename": event_filename,
+                        "index": index,
+                        "total": total,
+                        "url": url,
+                        "ok": ok,
+                    }),
+                );
+            };
+            match ev {
+                service::vision::VisionEvent::Connecting { url } => {
+                    emit_status("connecting", Some(url), None);
+                }
+                service::vision::VisionEvent::Delta(delta) => {
+                    if !seen_delta {
+                        seen_delta = true;
+                        emit_status("extracting", None, None);
+                    }
+                    let _ = app.emit(
+                        "vision-stream",
+                        serde_json::json!({
+                            "path": event_path,
+                            "filename": event_filename,
+                            "delta": delta,
+                            "done": false,
+                            "error": null,
+                        }),
+                    );
+                }
+                service::vision::VisionEvent::Parsing => {
+                    emit_status("parsing", None, None);
+                }
+            }
         };
 
-        let result = service::vision::extract_abs(&path, &pattern, &model, &mut on_delta).await;
+        let result = service::vision::extract_abs(&path, &pattern, &model, &mut on_event).await;
         match result {
             Ok(fields_json) => {
                 let base = service::renderer::render_plan(&pattern, &fields_json);
@@ -157,15 +190,26 @@ pub async fn ai_fill_targets(
                     .rsplit_once('.')
                     .map(|(_, e)| e.to_lowercase())
                     .unwrap_or_default();
+                let target = format!("{base}.{ext}");
                 out.push(RenameItem {
                     path: it.path.clone(),
-                    target: format!("{base}.{ext}"),
+                    target: target.clone(),
                 });
                 let _ = app.emit(
                     "vision-stream",
                     serde_json::json!({
                         "path": it.path, "filename": filename,
                         "delta": "", "done": true, "error": null,
+                    }),
+                );
+                let _ = app.emit(
+                    "vision-status",
+                    serde_json::json!({
+                        "phase": "item-done",
+                        "path": it.path, "filename": filename,
+                        "index": index, "total": total,
+                        "url": null, "ok": true,
+                        "target": target,
                     }),
                 );
             }
@@ -175,6 +219,16 @@ pub async fn ai_fill_targets(
                     serde_json::json!({
                         "path": it.path, "filename": filename,
                         "delta": "", "done": true, "error": e.to_string(),
+                    }),
+                );
+                let _ = app.emit(
+                    "vision-status",
+                    serde_json::json!({
+                        "phase": "item-done",
+                        "path": it.path, "filename": filename,
+                        "index": index, "total": total,
+                        "url": null, "ok": false,
+                        "target": null,
                     }),
                 );
                 out.push(RenameItem {

@@ -12,8 +12,17 @@ use serde_json::json;
 
 use crate::types::{AppError, ChatChunk, ChatResponse, ExtractedFieldsJson, ModelConfig, Result};
 
-/// 单个 chunk 回调：每收到一段模型增量文本调用一次。
-pub type DeltaCallback<'a> = dyn FnMut(&str) + Send + 'a;
+/// 视觉模型调用过程事件：供 Runtime 层转成 UI 分阶段进度提示。
+pub enum VisionEvent {
+    /// 即将发起请求（携带完整请求 URL）
+    Connecting { url: String },
+    /// 流式增量文本
+    Delta(String),
+    /// 流结束，开始解析模型返回
+    Parsing,
+}
+
+pub type VisionEventCallback<'a> = dyn FnMut(VisionEvent) + Send + 'a;
 
 /// 按绝对路径提取要素（拖放/AI 填充场景，未受目录约束）。
 /// 请求为流式；`on_delta` 逐段收到模型的原始增量文本（可为空实现）。
@@ -21,7 +30,7 @@ pub async fn extract_abs(
     path: &Path,
     pattern: &str,
     model: &ModelConfig,
-    on_delta: &mut DeltaCallback<'_>,
+    on_event: &mut VisionEventCallback<'_>,
 ) -> Result<String> {
     let filename = path
         .file_name()
@@ -46,7 +55,7 @@ pub async fn extract_abs(
         modified_secs: None,
     };
     let body = build_body(model, &asset, pattern, &fields, &mime, &b64);
-    let content = send_and_collect(model, body, on_delta).await?;
+    let content = send_and_collect(model, body, on_event).await?;
     let extracted: ExtractedFieldsJson = parse_json_text(&content)?;
     serde_json::to_string(&extracted.fields)
         .map_err(|e| AppError::vision(format!("序列化提取结果失败：{e}")))
@@ -102,7 +111,7 @@ fn build_body(
 async fn send_and_collect(
     model: &ModelConfig,
     body: serde_json::Value,
-    on_delta: &mut DeltaCallback<'_>,
+    on_event: &mut VisionEventCallback<'_>,
 ) -> Result<String> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(model.timeout_secs.max(1)))
@@ -110,6 +119,7 @@ async fn send_and_collect(
         .map_err(|e| AppError::internal(format!("构建 HTTP 客户端失败：{e}")))?;
 
     let url = format!("{}/chat/completions", model.base_url.trim_end_matches('/'));
+    on_event(VisionEvent::Connecting { url: url.clone() });
     let mut req = client.post(&url).json(&body);
     if !model.api_key.trim().is_empty() {
         req = req.bearer_auth(model.api_key.trim());
@@ -151,16 +161,23 @@ async fn send_and_collect(
             if let Some(payload) = line.strip_prefix("data: ") {
                 saw_sse = true;
                 if payload.trim() == "[DONE]" {
-                    return finish(content, raw_body, saw_sse);
+                    return finish(content, raw_body, saw_sse, on_event);
                 }
-                content.push_str(&apply_chunk(payload, on_delta)?);
+                content.push_str(&apply_chunk(payload, on_event)?);
             }
         }
     }
-    finish(content, raw_body, saw_sse)
+    finish(content, raw_body, saw_sse, on_event)
 }
 
-fn finish(content: String, raw_body: String, saw_sse: bool) -> Result<String> {
+fn finish(
+    content: String,
+    raw_body: String,
+    saw_sse: bool,
+    on_event: &mut VisionEventCallback<'_>,
+) -> Result<String> {
+    // 流已结束，进入解析阶段（[DONE] 与自然结束两条路径都经过这里）
+    on_event(VisionEvent::Parsing);
     if saw_sse {
         return Ok(content);
     }
@@ -170,15 +187,15 @@ fn finish(content: String, raw_body: String, saw_sse: bool) -> Result<String> {
     parse_content(resp)
 }
 
-/// 解析一个 SSE chunk，返回其中的增量文本并触发回调。
-fn apply_chunk(payload: &str, on_delta: &mut DeltaCallback<'_>) -> Result<String> {
+/// 解析一个 SSE chunk，返回其中的增量文本并触发事件回调。
+fn apply_chunk(payload: &str, on_event: &mut VisionEventCallback<'_>) -> Result<String> {
     let chunk: ChatChunk = serde_json::from_str(payload)
         .map_err(|e| AppError::vision(format!("解析流式 chunk 失败：{e}（片段：{payload}）")))?;
     let mut delta_text = String::new();
     if let Some(choice) = chunk.choices.into_iter().next() {
         if let Some(t) = choice.delta.content {
             if !t.is_empty() {
-                on_delta(&t);
+                on_event(VisionEvent::Delta(t.clone()));
                 delta_text = t;
             }
         }
@@ -263,7 +280,11 @@ mod tests {
     fn apply_chunk_emits_and_collects() {
         let got = Arc::new(Mutex::new(Vec::<String>::new()));
         let g2 = Arc::clone(&got);
-        let mut cb = move |t: &str| g2.lock().unwrap().push(t.to_string());
+        let mut cb = move |ev: VisionEvent| {
+            if let VisionEvent::Delta(t) = ev {
+                g2.lock().unwrap().push(t);
+            }
+        };
         let payload = r#"{"choices":[{"delta":{"content":"he"}}]}"#;
         let text = apply_chunk(payload, &mut cb).unwrap();
         assert_eq!(text, "he");
@@ -298,6 +319,8 @@ mod tests {
         };
         let deltas = Arc::new(Mutex::new(Vec::<String>::new()));
         let d2 = Arc::clone(&deltas);
+        let phases = Arc::new(Mutex::new(Vec::<String>::new()));
+        let p2 = Arc::clone(&phases);
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -306,7 +329,11 @@ mod tests {
             &img,
             "{description}",
             &model,
-            &mut |t: &str| d2.lock().unwrap().push(t.to_string()),
+            &mut |ev: VisionEvent| match ev {
+                VisionEvent::Delta(t) => d2.lock().unwrap().push(t),
+                VisionEvent::Connecting { .. } => p2.lock().unwrap().push("connecting".into()),
+                VisionEvent::Parsing => p2.lock().unwrap().push("parsing".into()),
+            },
         ));
 
         let fields_json = fields_json.expect("流式提取应成功");
@@ -320,6 +347,11 @@ mod tests {
             !deltas.lock().unwrap().is_empty(),
             "流式回调应收到至少一段增量"
         );
+        assert_eq!(
+            *phases.lock().unwrap(),
+            vec!["connecting".to_string(), "parsing".to_string()],
+            "分阶段事件应按序发出"
+        );
     }
 
     #[test]
@@ -327,7 +359,7 @@ mod tests {
         // 模拟 send_and_collect 的行处理逻辑：data: 前缀 / [DONE]
         let mut content = String::new();
         let mut saw_sse = false;
-        let mut cb = |_: &str| {};
+        let mut cb = |_: VisionEvent| {};
         for line in [
             "data: {\"choices\":[{\"delta\":{\"content\":\"a\"}}]}",
             "",
