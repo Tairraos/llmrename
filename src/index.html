@@ -9,7 +9,6 @@
   <body>
     <header class="app-header">
       <h1>LLM Rename <span id="app-version" class="version-badge"></span></h1>
-      <p class="tagline">拖入图片或文件夹 · 视觉模型批量重命名 · 中文文件名 · 可撤销 / 重做</p>
       <nav class="header-actions">
         <button id="btn-open-template" class="header-btn">📝 模板设置</button>
         <button id="btn-open-model" class="header-btn">⚙ 模型设置</button>
@@ -20,7 +19,6 @@
     <main class="app-main">
       <!-- ① 拖放 + 大模型调试台 -->
       <section class="card" data-block="drop">
-        <h2>拖入图片 / 大模型调试台</h2>
         <div class="drop-console-row">
           <div id="drop-zone" class="drop-zone">
             <p class="drop-zone-title">拖入图片 / 文件夹</p>
@@ -32,16 +30,14 @@
           </div>
           <pre id="console-view" class="console-view"><span class="c-dim">（大模型调试台：调用状态与流式输出会显示在这里）</span></pre>
         </div>
-        <div id="target-summary" class="hint"></div>
       </section>
 
       <!-- ② 待重命名列表 -->
       <section class="card" data-block="targets">
-        <h2>待重命名</h2>
         <div class="row template-bar">
           <span class="hint">模板：</span>
           <code id="template-summary">（未设置）</code>
-          <button id="btn-ai-fill" class="primary">✨ 用视觉模型填充目标名</button>
+          <button id="btn-ai-fill" class="primary">用视觉模型填充目标名</button>
         </div>
         <div class="targets-scroll">
           <table class="assets-table">
@@ -56,11 +52,12 @@
           </table>
         </div>
         <div class="actions">
-          <button id="btn-clear-targets" class="secondary">清空列表</button>
-          <button id="btn-execute" class="danger">开始重命名</button>
+          <span id="target-summary" class="hint"></span>
+          <span id="run-hint" class="hint" role="status"></span>
           <button id="btn-undo" class="secondary" disabled>↶ 撤销</button>
           <button id="btn-redo" class="secondary" disabled>↷ 重做</button>
-          <span id="run-hint" class="hint" role="status"></span>
+          <button id="btn-clear-targets" class="secondary">清空列表</button>
+          <button id="btn-execute" class="danger">开始重命名</button>
         </div>
       </section>
     </main>
