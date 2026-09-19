@@ -553,20 +553,6 @@ function bindEvents() {
   });
   $("#btn-ai-fill").addEventListener("click", aiFillTargets);
 
-  // 拖放
-  const zone = $("#drop-zone");
-  zone.addEventListener("dragover", (e) => {
-    e.preventDefault();
-    zone.classList.add("dragging");
-  });
-  zone.addEventListener("dragleave", () => zone.classList.remove("dragging"));
-  zone.addEventListener("drop", (e) => {
-    e.preventDefault();
-    zone.classList.remove("dragging");
-    const paths = [...(e.dataTransfer?.files ?? [])].map((f) => f.path);
-    if (paths.length > 0) addPaths(paths);
-  });
-
   $("#btn-pick-files").addEventListener("click", (e) => {
     e.stopPropagation();
     pickFiles();
@@ -613,6 +599,31 @@ async function boot() {
 
   // 监听后端推送：流式回显 + 预留的长任务进度
   try {
+    // 文件拖放：Tauri 在窗口级拦截文件拖放（DOM drop 事件不触发，
+    // 且 WKWebView 的 File 对象没有 path 属性），必须用官方 drag-drop 事件拿真实路径。
+    // 整个窗口任意位置都可拖放；光标落在收集框内时高亮。
+    const zone = $("#drop-zone");
+    const zoneHit = (pos) => {
+      if (!pos || !zone) return false;
+      const dpr = window.devicePixelRatio || 1;
+      const r = zone.getBoundingClientRect();
+      const x = pos.x / dpr;
+      const y = pos.y / dpr;
+      return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+    };
+    await listen("tauri://drag-enter", (e) => {
+      if (zoneHit(e.payload?.position)) zone?.classList.add("dragging");
+    });
+    await listen("tauri://drag-over", (e) => {
+      zone?.classList.toggle("dragging", zoneHit(e.payload?.position));
+    });
+    await listen("tauri://drag-leave", () => zone?.classList.remove("dragging"));
+    await listen("tauri://drag-drop", (e) => {
+      zone?.classList.remove("dragging");
+      const paths = e.payload?.paths ?? [];
+      if (paths.length > 0) addPaths(paths);
+    });
+
     let streamPath = null;
     await listen("vision-stream", (e) => {
       const p = e.payload ?? {};
