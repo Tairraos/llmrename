@@ -3,7 +3,7 @@
 
 use std::path::{Path, PathBuf};
 
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::config;
 use crate::repo;
@@ -76,9 +76,12 @@ pub async fn collect_targets(
 }
 
 /// 视觉模型填充目标名：对每张图提取字段 → 渲染模板 → 返回「路径 → 目标名」。
+///
+/// 模型流式增量通过 `vision-stream` 事件实时推给前端回显：
+/// `{ path, filename, delta, done, error }`；`done=true` 表示该文件处理结束。
 #[tauri::command]
 pub async fn ai_fill_targets(
-    _app: AppHandle,
+    app: AppHandle,
     items: Vec<RenameItem>,
     pattern: String,
     state: State<'_, AppState>,
@@ -91,7 +94,24 @@ pub async fn ai_fill_targets(
             .file_name()
             .map(|f| f.to_string_lossy().into_owned())
             .unwrap_or_default();
-        match service::vision::extract_abs(&path, &pattern, &model).await {
+
+        let event_path = it.path.clone();
+        let event_filename = filename.clone();
+        let mut on_delta = |delta: &str| {
+            let _ = app.emit(
+                "vision-stream",
+                serde_json::json!({
+                    "path": event_path,
+                    "filename": event_filename,
+                    "delta": delta,
+                    "done": false,
+                    "error": null,
+                }),
+            );
+        };
+
+        let result = service::vision::extract_abs(&path, &pattern, &model, &mut on_delta).await;
+        match result {
             Ok(fields_json) => {
                 let base = service::renderer::render_plan(&pattern, &fields_json);
                 let ext = filename
@@ -102,8 +122,22 @@ pub async fn ai_fill_targets(
                     path: it.path.clone(),
                     target: format!("{base}.{ext}"),
                 });
+                let _ = app.emit(
+                    "vision-stream",
+                    serde_json::json!({
+                        "path": it.path, "filename": filename,
+                        "delta": "", "done": true, "error": null,
+                    }),
+                );
             }
-            Err(_) => {
+            Err(e) => {
+                let _ = app.emit(
+                    "vision-stream",
+                    serde_json::json!({
+                        "path": it.path, "filename": filename,
+                        "delta": "", "done": true, "error": e.to_string(),
+                    }),
+                );
                 out.push(RenameItem {
                     path: it.path.clone(),
                     target: it.target.clone(),

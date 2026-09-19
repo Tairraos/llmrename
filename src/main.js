@@ -496,8 +496,27 @@ async function boot() {
   renderTargets();
   renderLogs();
 
-  // 监听后端推送（预留：长任务进度）
+  // 监听后端推送：流式回显 + 预留的长任务进度
   try {
+    let streamPath = null;
+    await listen("vision-stream", (e) => {
+      const p = e.payload ?? {};
+      const view = $("#stream-view");
+      if (!view) return;
+      view.hidden = false;
+      if (p.path !== streamPath) {
+        streamPath = p.path;
+        view.textContent = `── ${p.filename ?? p.path} ──\n`;
+      }
+      if (p.delta) {
+        view.textContent += p.delta;
+        view.scrollTop = view.scrollHeight;
+      }
+      if (p.done) {
+        view.textContent += p.error ? `\n✗ ${p.error}\n` : `\n✓ 完成\n`;
+        view.scrollTop = view.scrollHeight;
+      }
+    });
     await listen("rename-progress", (e) => {
       showRunHint(`进度：${e.payload?.done ?? "?"}/${e.payload?.total ?? "?"}`, "");
     });

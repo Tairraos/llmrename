@@ -1,47 +1,28 @@
-//! 视觉模型调用：在边界解析请求/响应（见 docs/design/vision-model-contract.md）。
+//! 视觉模型调用：流式（SSE）请求与边界解析（见 docs/design/vision-model-contract.md）。
+//!
+//! 流式增量通过 `on_delta` 回调逐段抛给上层（Runtime 层负责转成 UI 事件），
+//! 本层不感知 Tauri，保持依赖方向铁律。
 
 use std::path::Path;
 use std::time::Duration;
 
 use base64::Engine;
+use futures_util::StreamExt;
 use serde_json::json;
 
-use crate::types::{AppError, AssetEntry, ChatResponse, ExtractedFieldsJson, ModelConfig, Result};
+use crate::types::{AppError, ChatChunk, ChatResponse, ExtractedFieldsJson, ModelConfig, Result};
 
-/// 对单个资产调用视觉模型，返回「字段名 → 值」JSON 字符串（序列化后的 map）。
-pub async fn extract(
-    dir: &Path,
-    asset: &AssetEntry,
-    pattern: &str,
-    model: &ModelConfig,
-) -> Result<String> {
-    let fields = crate::service::prompts::fields_from_pattern(pattern);
-    if fields.is_empty() {
-        return Err(AppError::template("模板中没有 {字段} 占位符"));
-    }
-    let mime = mime_for(&asset.filename);
-    let b64 = read_base64(dir, asset)?;
-    let body = build_body(model, asset, pattern, &fields, &mime, &b64);
-    let resp = post_json(model, body).await?;
-    let content = parse_content(resp)?;
-    let extracted: ExtractedFieldsJson = parse_json_text(&content)?;
-    serde_json::to_string(&extracted.fields)
-        .map_err(|e| AppError::vision(format!("序列化提取结果失败：{e}")))
-}
-
-fn read_base64(dir: &Path, asset: &AssetEntry) -> Result<String> {
-    let path = dir.join(&asset.filename);
-    let bytes = std::fs::read(&path).map_err(|e| {
-        AppError::fs(format!(
-            "读取图片失败 {}：{e}（文件可能已被移动或删除）",
-            path.display()
-        ))
-    })?;
-    Ok(base64::engine::general_purpose::STANDARD.encode(bytes))
-}
+/// 单个 chunk 回调：每收到一段模型增量文本调用一次。
+pub type DeltaCallback<'a> = dyn FnMut(&str) + Send + 'a;
 
 /// 按绝对路径提取要素（拖放/AI 填充场景，未受目录约束）。
-pub async fn extract_abs(path: &Path, pattern: &str, model: &ModelConfig) -> Result<String> {
+/// 请求为流式；`on_delta` 逐段收到模型的原始增量文本（可为空实现）。
+pub async fn extract_abs(
+    path: &Path,
+    pattern: &str,
+    model: &ModelConfig,
+    on_delta: &mut DeltaCallback<'_>,
+) -> Result<String> {
     let filename = path
         .file_name()
         .map(|f| f.to_string_lossy().into_owned())
@@ -58,15 +39,14 @@ pub async fn extract_abs(path: &Path, pattern: &str, model: &ModelConfig) -> Res
         ))
     })?;
     let b64 = base64::engine::general_purpose::STANDARD.encode(bytes);
-    let asset = AssetEntry {
+    let asset = crate::types::AssetEntry {
         path: path.to_string_lossy().into_owned(),
         filename,
         size_bytes: 0,
         modified_secs: None,
     };
     let body = build_body(model, &asset, pattern, &fields, &mime, &b64);
-    let resp = post_json(model, body).await?;
-    let content = parse_content(resp)?;
+    let content = send_and_collect(model, body, on_delta).await?;
     let extracted: ExtractedFieldsJson = parse_json_text(&content)?;
     serde_json::to_string(&extracted.fields)
         .map_err(|e| AppError::vision(format!("序列化提取结果失败：{e}")))
@@ -90,7 +70,7 @@ fn mime_for(filename: &str) -> String {
 
 fn build_body(
     model: &ModelConfig,
-    asset: &AssetEntry,
+    asset: &crate::types::AssetEntry,
     pattern: &str,
     fields: &[String],
     mime: &str,
@@ -112,11 +92,18 @@ fn build_body(
             }
         ],
         "temperature": 0.2,
-        "max_tokens": 1024
+        "max_tokens": 1024,
+        "stream": true
     })
 }
 
-async fn post_json(model: &ModelConfig, body: serde_json::Value) -> Result<ChatResponse> {
+/// 发送流式请求并收集完整 content；每段增量调用 `on_delta`。
+/// 若服务端不支持流式（响应体不是 SSE），回退为整体 JSON 解析。
+async fn send_and_collect(
+    model: &ModelConfig,
+    body: serde_json::Value,
+    on_delta: &mut DeltaCallback<'_>,
+) -> Result<String> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(model.timeout_secs.max(1)))
         .build()
@@ -131,12 +118,11 @@ async fn post_json(model: &ModelConfig, body: serde_json::Value) -> Result<ChatR
         AppError::vision(format!("请求模型失败：{e}（检查 base_url / 网络 / 超时）"))
     })?;
     let status = resp.status();
-    let text = resp
-        .text()
-        .await
-        .map_err(|e| AppError::vision(format!("读取模型响应失败：{e}")))?;
-
     if !status.is_success() {
+        let text = resp
+            .text()
+            .await
+            .map_err(|e| AppError::vision(format!("读取模型响应失败：{e}")))?;
         // 尽量透传服务端 error.message
         let hint = serde_json::from_str::<serde_json::Value>(&text)
             .ok()
@@ -146,8 +132,58 @@ async fn post_json(model: &ModelConfig, body: serde_json::Value) -> Result<ChatR
             "模型返回 HTTP {status}：{hint}（检查 API Key / 配额 / 模型名）"
         )));
     }
-    serde_json::from_str(&text)
-        .map_err(|e| AppError::vision(format!("解析模型响应 JSON 失败：{e}")))
+
+    // 流式读取，按行解析 SSE；同时保留原始响应体供非 SSE 回退解析
+    let mut content = String::new();
+    let mut raw_body = String::new();
+    let mut saw_sse = false;
+    let mut buffer = String::new();
+    let mut stream = resp.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let bytes = chunk.map_err(|e| AppError::vision(format!("读取流式响应失败：{e}")))?;
+        let piece = String::from_utf8_lossy(&bytes).into_owned();
+        raw_body.push_str(&piece);
+        buffer.push_str(&piece);
+        // 处理完整行（保留最后一段不完整的）
+        while let Some(pos) = buffer.find('\n') {
+            let line: String = buffer.drain(..=pos).collect();
+            let line = line.trim_end_matches(['\n', '\r']);
+            if let Some(payload) = line.strip_prefix("data: ") {
+                saw_sse = true;
+                if payload.trim() == "[DONE]" {
+                    return finish(content, raw_body, saw_sse);
+                }
+                content.push_str(&apply_chunk(payload, on_delta)?);
+            }
+        }
+    }
+    finish(content, raw_body, saw_sse)
+}
+
+fn finish(content: String, raw_body: String, saw_sse: bool) -> Result<String> {
+    if saw_sse {
+        return Ok(content);
+    }
+    // 服务端不支持流式：整体按非流式 JSON 解析
+    let resp: ChatResponse = serde_json::from_str(&raw_body)
+        .map_err(|e| AppError::vision(format!("解析模型响应 JSON 失败：{e}")))?;
+    parse_content(resp)
+}
+
+/// 解析一个 SSE chunk，返回其中的增量文本并触发回调。
+fn apply_chunk(payload: &str, on_delta: &mut DeltaCallback<'_>) -> Result<String> {
+    let chunk: ChatChunk = serde_json::from_str(payload)
+        .map_err(|e| AppError::vision(format!("解析流式 chunk 失败：{e}（片段：{payload}）")))?;
+    let mut delta_text = String::new();
+    if let Some(choice) = chunk.choices.into_iter().next() {
+        if let Some(t) = choice.delta.content {
+            if !t.is_empty() {
+                on_delta(&t);
+                delta_text = t;
+            }
+        }
+    }
+    Ok(delta_text)
 }
 
 fn parse_content(resp: ChatResponse) -> Result<String> {
@@ -163,7 +199,6 @@ fn parse_content(resp: ChatResponse) -> Result<String> {
 /// 剥离代码围栏并解析 JSON 对象。
 fn parse_json_text(content: &str) -> Result<ExtractedFieldsJson> {
     let trimmed = content.trim();
-    // ```json ... ``` 或 ``` ... ```
     let cleaned = strip_fence(trimmed);
     serde_json::from_str(cleaned).map_err(|e| {
         AppError::vision(format!(
@@ -188,6 +223,16 @@ fn strip_fence(s: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Arc, Mutex};
+
+    /// 1x1 纯红 PNG（嵌入，测试视觉通路）
+    const RED_PNG: &[u8] = &[
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44,
+        0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02, 0x00, 0x00, 0x00, 0x90,
+        0x77, 0x53, 0xde, 0x00, 0x00, 0x00, 0x0c, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0xf8,
+        0xcf, 0xc0, 0x00, 0x00, 0x03, 0x01, 0x01, 0x00, 0xc9, 0xfe, 0x92, 0xef, 0x00, 0x00, 0x00,
+        0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+    ];
 
     #[test]
     fn strips_markdown_fence() {
@@ -212,5 +257,92 @@ mod tests {
         assert_eq!(mime_for("a.JPG"), "image/jpeg");
         assert_eq!(mime_for("a.png"), "image/png");
         assert_eq!(mime_for("noext"), "image/jpeg");
+    }
+
+    #[test]
+    fn apply_chunk_emits_and_collects() {
+        let got = Arc::new(Mutex::new(Vec::<String>::new()));
+        let g2 = Arc::clone(&got);
+        let mut cb = move |t: &str| g2.lock().unwrap().push(t.to_string());
+        let payload = r#"{"choices":[{"delta":{"content":"he"}}]}"#;
+        let text = apply_chunk(payload, &mut cb).unwrap();
+        assert_eq!(text, "he");
+        // 空 choices（usage 收尾块）安全
+        let text2 = apply_chunk(r#"{"choices":[]}"#, &mut cb).unwrap();
+        assert_eq!(text2, "");
+        // 空增量不回调
+        apply_chunk(r#"{"choices":[{"delta":{"content":""}}]}"#, &mut cb).unwrap();
+        assert_eq!(got.lock().unwrap().len(), 1);
+    }
+
+    /// 真实服务冒烟（不入 CI）：LLMRENAME_TEST_KEY=<本地key> cargo test -- --ignored
+    /// 默认指向本地 OpenAI 兼容服务的视觉模型；key 必须由环境变量提供（不入库）。
+    #[test]
+    #[ignore = "需要本地 LLM 服务，cargo test -- --ignored 手动运行"]
+    fn vision_stream_smoke_against_local_service() {
+        let base = std::env::var("LLMRENAME_TEST_BASE_URL")
+            .unwrap_or_else(|_| "http://127.0.0.1:8317/v1".into());
+        let key = std::env::var("LLMRENAME_TEST_KEY").expect("设置 LLMRENAME_TEST_KEY");
+        let model_name = std::env::var("LLMRENAME_TEST_MODEL")
+            .unwrap_or_else(|_| "n/llama-3.2-11b-vision".into());
+
+        let dir = tempfile::tempdir().unwrap();
+        let img = dir.path().join("red.png");
+        std::fs::write(&img, RED_PNG).unwrap();
+
+        let model = ModelConfig {
+            base_url: base,
+            api_key: key,
+            model: model_name,
+            timeout_secs: 120,
+        };
+        let deltas = Arc::new(Mutex::new(Vec::<String>::new()));
+        let d2 = Arc::clone(&deltas);
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let fields_json = rt.block_on(extract_abs(
+            &img,
+            "{description}",
+            &model,
+            &mut |t: &str| d2.lock().unwrap().push(t.to_string()),
+        ));
+
+        let fields_json = fields_json.expect("流式提取应成功");
+        let parsed: std::collections::HashMap<String, String> =
+            serde_json::from_str(&fields_json).expect("提取结果应为字段 JSON");
+        assert!(
+            parsed.contains_key("description"),
+            "应包含 description 字段：{fields_json}"
+        );
+        assert!(
+            !deltas.lock().unwrap().is_empty(),
+            "流式回调应收到至少一段增量"
+        );
+    }
+
+    #[test]
+    fn sse_line_parsing() {
+        // 模拟 send_and_collect 的行处理逻辑：data: 前缀 / [DONE]
+        let mut content = String::new();
+        let mut saw_sse = false;
+        let mut cb = |_: &str| {};
+        for line in [
+            "data: {\"choices\":[{\"delta\":{\"content\":\"a\"}}]}",
+            "",
+            "data: {\"choices\":[{\"delta\":{\"content\":\"b\"}}]}",
+            "data: [DONE]",
+        ] {
+            if let Some(payload) = line.strip_prefix("data: ") {
+                saw_sse = true;
+                if payload.trim() == "[DONE]" {
+                    break;
+                }
+                content.push_str(&apply_chunk(payload, &mut cb).unwrap());
+            }
+        }
+        assert!(saw_sse);
+        assert_eq!(content, "ab");
     }
 }

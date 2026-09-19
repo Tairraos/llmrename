@@ -70,7 +70,7 @@ if [ -d "$APP_SRC" ]; then
   mv "$APP_SRC" "target/LLM Rename.app"
   echo "==> .app 保留在 target/LLM Rename.app"
 fi
-rm -rf target/release target/debug
+rm -rf target/release target/debug target/flycheck0
 rm -f target/.rustc_info.json target/CACHEDIR.TAG
 # 防止旧工具链再写入迁移前的历史遗留目录
 rm -rf src-tauri/target

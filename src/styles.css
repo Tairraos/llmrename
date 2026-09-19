@@ -377,3 +377,20 @@ button.danger:hover:not(:disabled) {
 .model-form .field {
   margin-bottom: 12px;
 }
+
+/* 流式回显面板 */
+.stream-view {
+  margin: 10px 0 4px;
+  padding: 10px 12px;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #0f172a;
+  color: #a5f3fc;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+}

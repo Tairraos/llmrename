@@ -33,6 +33,28 @@ pub struct ChatResponse {
     pub choices: Vec<ChatChoice>,
 }
 
+/// SSE 流式 chunk（OpenAI chat.completion.chunk；字段宽容缺省）。
+#[derive(Debug, Clone, Deserialize)]
+pub struct ChatChunk {
+    #[serde(default)]
+    pub choices: Vec<ChatDeltaChoice>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ChatDeltaChoice {
+    #[serde(default)]
+    pub delta: ChatDelta,
+    /// 最后一块携带 stop
+    #[serde(default)]
+    pub finish_reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct ChatDelta {
+    #[serde(default)]
+    pub content: Option<String>,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct ChatChoice {
     pub message: ChatMessage,

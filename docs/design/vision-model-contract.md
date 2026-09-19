@@ -61,6 +61,22 @@ Authorization: Bearer {api_key}
 | HTTP 5xx / 超时 | 服务端/网络 | 该文件 `failed`，错误含状态码或超时秒数 |
 | 非 2xx 但解析出 JSON 错误体 | 携带 `error.message` | 尽量把 `error.message` 透传给用户 |
 
+## 4.5 流式协议（当前默认启用）
+
+请求体带 `"stream": true`，响应为标准 OpenAI SSE：
+
+```
+data: {"choices":[{"delta":{"content":"增量"}}]}
+data: {"choices":[],"usage":{...}}   // 收尾块可能为空 choices，需容忍
+data: [DONE]
+```
+
+- Service 层逐行解析，每段增量经 `on_delta` 回调上抛（Service 不感知 Tauri）
+- Runtime 层把增量转成 `vision-stream` 事件：`{ path, filename, delta, done, error }`
+- 前端在「待重命名」卡片的流式面板实时回显（文件名切换时重置面板）
+- **回退**：服务端不支持流式（响应体不是 SSE）时，整体按非流式 JSON 解析
+- 非 2xx 仍在发送阶段直接报错（透传 error.message）
+
 ## 5. 提示词
 
 - `SYSTEM_PROMPT`（英文，稳定）：声明你是资产重命名助手；只输出一个 JSON 对象，键为给定字段名；值为简短字符串（filesystem-safe 建议：小写、下划线、无路径分隔符）；不得输出解释或其它文本。
@@ -77,3 +93,14 @@ Authorization: Bearer {api_key}
 - 模型对视觉内容的提取结果**不保证精确**；预览阶段不做真实调用（成本与延迟），用户所见预览为字段名猜测，执行后以日志为准。
 - 不重试（首版），失败即记 `failed`。
 - 默认 `timeout_secs = 60`，可配置。
+
+## 8. 实测记录（2026-09-19，本地 OpenAI 兼容服务 127.0.0.1:8317）
+
+| 模型 | 文本 | 视觉 | 结论 |
+|---|---|---|---|
+| n/llama-3.2-11b-vision | ✅ | ✅（1x1 红图答 "Red."） | **选定**：唯一可用且支持视觉，SSE 标准格式 |
+| n/gemma-4 | ❌ 连接断（HTTP 000） | ❌ | 上游不可用 |
+| n/mistral-large-2 | 上游认证不可用 | ❌ | 纯文本 LLM，auth_unavailable |
+| n/llama-3.1-nemotron | 上游认证不可用 | ❌ | 纯文本 LLM，auth_unavailable |
+
+集成冒烟：`LLMRENAME_TEST_KEY=<key> cargo test vision_stream_smoke -- --ignored`（流式提取 + 字段 JSON 解析 + 增量回调非空）。
