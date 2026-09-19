@@ -8,11 +8,12 @@
 # 行为（对应 AGENTS.md 铁律 6.6「构建与发布」）:
 #   - 每次 build 自动 bump patch 版本（同步 tauri.conf.json / Cargo.toml / package.json）
 #   - build 产物默认只出 .app；需要 dmg 时显式传 --dmg
+#   - .app 交付物文件名带版本号：target/LLM Rename_<版本>.app（target/ 只留最新一份），
+#     历史版本留档 release/<版本>/（含 VERSION 文件）
 #   - build 完成后保留编译缓存（target/release、target/debug 不删，允许以后增量编译），
-#     仅清理可再生成的产物：dist/ 与打包目录 target/release/bundle；
-#     target/ 根保留 .app（--dmg 时附加 .dmg）；release/<version>/ 留档 .app / .dmg 与 VERSION
+#     仅清理可再生成的产物：dist/ 与打包目录 target/release/bundle
 #   - 需要释放磁盘空间时由用户手动删除 target/（脚本不代劳）
-#   - 版本号提升的那次 git commit 的 message 必须写明版本号（脚本代劳）
+#   - 版本号提升的那次 git commit 的 message 必须写明版本号（脚本不代劳提交）
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -37,14 +38,15 @@ else
 fi
 pnpm tauri build --bundles "$BUNDLES"
 
-# 3) 收集产物到 release/<version>/
+# 3) 收集产物到 release/<version>/（.app 文件名带版本号）
 RELEASE_DIR="release/$NEW_VER"
 mkdir -p "$RELEASE_DIR"
 APP_SRC="target/release/bundle/macos/LLM Rename.app"
+APP_OUT="LLM Rename_${NEW_VER}.app"
 if [ -d "$APP_SRC" ]; then
-  rm -rf "$RELEASE_DIR/LLM Rename.app"
-  cp -R "$APP_SRC" "$RELEASE_DIR/LLM Rename.app"
-  echo "==> .app 产物: $RELEASE_DIR/LLM Rename.app"
+  rm -rf "$RELEASE_DIR/$APP_OUT"
+  cp -R "$APP_SRC" "$RELEASE_DIR/$APP_OUT"
+  echo "==> .app 产物: $RELEASE_DIR/$APP_OUT"
 fi
 if [ "$DMG" -eq 1 ]; then
   DMG_SRC="target/release/bundle/dmg/LLM Rename_${NEW_VER}_aarch64.dmg"
@@ -68,9 +70,10 @@ if [ "$DMG" -eq 1 ]; then
   done
 fi
 if [ -d "$APP_SRC" ]; then
-  rm -rf "target/LLM Rename.app"
-  mv "$APP_SRC" "target/LLM Rename.app"
-  echo "==> .app 保留在 target/LLM Rename.app"
+  # target/ 只保留最新一份带版本号的交付物（历史版本已留档 release/<版本>/）
+  rm -rf "target/LLM Rename.app" target/LLM\ Rename_*.app
+  mv "$APP_SRC" "target/$APP_OUT"
+  echo "==> .app 保留在 target/$APP_OUT"
 fi
 # 打包目录是 .app / .dmg 的重复副本且可随时重新生成，删掉；其余编译缓存全部保留
 rm -rf "target/release/bundle"

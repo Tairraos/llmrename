@@ -15,7 +15,8 @@ pnpm install
 # 本地开发运行（vite dev server + tauri dev）
 pnpm tauri dev
 
-# 构建发布（自动 bump 版本，默认只出 .app；加 --dmg 出 dmg；保留编译缓存，仅清理打包产物）
+# 构建发布（自动 bump 版本；默认只出 .app，加 --dmg 出 dmg；
+#   交付物文件名带版本号 target/"LLM Rename_<版本>.app"；保留编译缓存）
 ./scripts/release.sh
 ./scripts/release.sh --dmg
 

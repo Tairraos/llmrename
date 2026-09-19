@@ -96,10 +96,11 @@ Types → Config → Repo → Service → Runtime
 1. **构建目标目录是项目根的 `target/`**（`src-tauri/.cargo/config.toml` 设定 `target-dir = "../target"`）。
 2. **每次 build 都必须提升版本号**：用 `./scripts/release.sh`（或 `python3 scripts/_bump_version.py`）自动 bump patch 版本，同步 `tauri.conf.json` / `Cargo.toml` / `package.json`。
 3. **默认只构建 `.app`**；需要 `.dmg` 时显式传 `--dmg`（`./scripts/release.sh --dmg`）。
-4. **build 完成后保留编译缓存，只清理打包产物**：`target/release`、`target/debug` 等编译缓存一律不删，允许以后增量编译（冷全量约 1 分钟 vs 缓存增量约 1 秒）；需要释放空间时由用户手动清理。仅删除可再生成的产物：`dist/` 与 `target/release/bundle/`（`.app` 移到 `target/` 根，`--dmg` 时附加 `.dmg`）；遗留的 `src-tauri/target` 仍删除。`release/<version>/` 留档 `.app` / `.dmg` 与 `VERSION` 文件。
-5. **版本号显示在窗口标题**：前端运行时请求 `get_version` 注入 title（`LLM Rename v0.x.y`）。
-6. **build 产物不进 repo**：`target/`、`dist/`、`release/` 均在 `.gitignore`。
-7. **提升了版本号的那次 git commit，message 必须写明版本号**（如 `feat: 升级到 0.1.1`），便于追溯发布物与源码对应。
+4. **build 完成后保留编译缓存，只清理打包产物**：`target/release`、`target/debug` 等编译缓存一律不删，允许以后增量编译（冷全量约 1 分钟 vs 缓存增量约 1 秒）；需要释放空间时由用户手动清理。仅删除可再生成的产物：`dist/` 与 `target/release/bundle/`；遗留的 `src-tauri/target` 仍删除。`.app` 以版本号命名移到 `target/` 根（如 `LLM Rename_0.1.5.app`，只保留最新一份）；`--dmg` 时附加 `.dmg`。`release/<version>/` 留档 `.app` / `.dmg` 与 `VERSION` 文件。
+5. **每次会话结束必须产出新版 .app**：会话收尾执行 `./scripts/release.sh`（自动 bump 版本 → 构建 → 留档 → 清理打包产物），确保每轮会话都有一个带新版本号的可运行 `.app` 交付物。
+6. **版本号显示在窗口标题**：前端运行时请求 `get_version` 注入 title（`LLM Rename v0.x.y`）。
+7. **build 产物不进 repo**：`target/`、`dist/`、`release/` 均在 `.gitignore`。
+8. **提升了版本号的那次 git commit，message 必须写明版本号**（如 `feat: 升级到 0.1.1`），便于追溯发布物与源码对应。
 
 ### 7. 熵管理
 
