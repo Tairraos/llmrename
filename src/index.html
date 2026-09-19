@@ -43,16 +43,18 @@
           <code id="template-summary">（未设置）</code>
           <button id="btn-ai-fill" class="primary">✨ 用视觉模型填充目标名</button>
         </div>
-        <table class="assets-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>原文件名</th>
-              <th>目标文件名（可编辑）</th>
-            </tr>
-          </thead>
-          <tbody id="targets-body"></tbody>
-        </table>
+        <div class="targets-scroll">
+          <table class="assets-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>原文件名</th>
+                <th>目标文件名（可编辑，扩展名固定）</th>
+              </tr>
+            </thead>
+            <tbody id="targets-body"></tbody>
+          </table>
+        </div>
         <div class="actions">
           <button id="btn-clear-targets" class="secondary">清空列表</button>
           <button id="btn-execute" class="danger">开始重命名</button>

@@ -44,6 +44,19 @@ function renderTemplateFields() {
       : "";
 }
 
+// 文件名拆分：最后一个点之后为扩展名（无点或点在开头则视为无扩展名）
+function splitNameExt(filename) {
+  const i = filename.lastIndexOf(".");
+  if (i <= 0) return { name: filename, ext: "" };
+  return { name: filename.slice(0, i), ext: filename.slice(i + 1) };
+}
+
+// 由 name + ext 合成完整目标文件名
+function composeTarget(t) {
+  const name = (t.name ?? "").trim();
+  return t.ext ? `${name}.${t.ext}` : name;
+}
+
 function renderTargets() {
   const body = $("#targets-body");
   const targets = window.App.targets;
@@ -56,18 +69,21 @@ function renderTargets() {
   body.innerHTML = targets
     .map((t, i) => {
       const safeName = escapeHtml(t.filename);
-      const safeTarget = escapeHtml(t.target);
+      const safeNamePart = escapeHtml(t.name);
+      const extLabel = t.ext
+        ? `<span class="target-ext" title="扩展名不可编辑">.${escapeHtml(t.ext)}</span>`
+        : "";
       return `<tr>
         <td>${i + 1}</td>
         <td class="old-name" title="${safeName}">${safeName}</td>
-        <td>
+        <td class="target-cell">
           <input
             class="target-input"
             data-idx="${i}"
             type="text"
-            value="${safeTarget}"
+            value="${safeNamePart}"
             spellcheck="false"
-          />
+          />${extLabel}
         </td>
       </tr>`;
     })
@@ -287,12 +303,9 @@ function mergeTargets(entries) {
   for (const e of entries) {
     if (existing.has(e.path)) continue;
     existing.add(e.path);
-    window.App.targets.push({
-      path: e.path,
-      filename: e.filename,
-      // 默认目标名 = 原文件名（用户后续编辑或 AI 填充）
-      target: e.filename,
-    });
+    const { name, ext } = splitNameExt(e.filename);
+    // 默认目标名 = 原文件名（不含扩展名；扩展名固定不可编辑）
+    window.App.targets.push({ path: e.path, filename: e.filename, name, ext });
   }
   renderTargets();
 }
@@ -346,11 +359,18 @@ async function aiFillTargets() {
   setRunning(true);
   showRunHint(`开始填充目标名：共 ${window.App.targets.length} 个文件…`, "");
   try {
-    const items = window.App.targets.map((t) => ({ path: t.path, target: t.target }));
+    const items = window.App.targets.map((t) => ({
+      path: t.path,
+      target: composeTarget(t),
+    }));
     const filled = await invoke("ai_fill_targets", { items, pattern });
     const byPath = new Map((filled ?? []).map((f) => [f.path, f.target]));
     for (const t of window.App.targets) {
-      if (byPath.has(t.path)) t.target = byPath.get(t.path);
+      if (byPath.has(t.path)) {
+        // 模型返回完整文件名（后端已按原扩展名拼接），拆回 name + ext
+        const { name } = splitNameExt(byPath.get(t.path));
+        t.name = name;
+      }
     }
     renderTargets();
     showRunHint("目标名已填充，可手动调整后执行", "ok");
@@ -380,7 +400,10 @@ async function executeRename() {
       window.App.targets[i].target = inp.value.trim();
     }
   }
-  const items = window.App.targets.map((t) => ({ path: t.path, target: t.target }));
+  const items = window.App.targets.map((t) => ({
+    path: t.path,
+    target: composeTarget(t),
+  }));
   setRunning(true);
   showRunHint("重命名中…", "");
   try {
@@ -584,13 +607,13 @@ function bindEvents() {
     pickDir();
   });
 
-  // 目标名编辑
+  // 目标名编辑（仅文件名部分；扩展名固定不可编辑）
   $("#targets-body").addEventListener("input", (e) => {
     const inp = e.target;
     if (!inp.classList.contains("target-input")) return;
     const i = Number(inp.dataset.idx);
     if (Number.isInteger(i) && window.App.targets[i]) {
-      window.App.targets[i].target = inp.value;
+      window.App.targets[i].name = inp.value;
     }
   });
 
