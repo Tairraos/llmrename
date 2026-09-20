@@ -33,6 +33,12 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns"
+    ],
     "category": "Utility",
     "shortDescription": "用视觉模型按模板批量重命名图片",
     "longDescription": "llmrename 是一个桌面工具：配置重命名模板，用视觉模型解析图片并提取要素，按模板批量重命名资产库中的图片，全程记录 JSONL 日志。"
