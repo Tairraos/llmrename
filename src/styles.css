@@ -451,6 +451,8 @@ button.danger:hover:not(:disabled) {
   padding: 3px 10px;
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
+  height: 30px;
+  vertical-align: middle;
 }
 .assets-table thead th {
   position: sticky;
@@ -475,10 +477,12 @@ button.danger:hover:not(:disabled) {
   min-width: 200px;
   border: none;
   background: transparent;
-  padding: 2px 6px;
+  height: 22px;
+  line-height: 22px;
+  padding: 0 6px;
   border-radius: 4px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
+  font-family: inherit;
+  font-size: 13px;
   color: var(--text);
 }
 .target-cell .target-input:hover {
@@ -489,8 +493,9 @@ button.danger:hover:not(:disabled) {
   background: #eff6ff;
 }
 .target-ext {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 22px;
   color: var(--muted);
   user-select: none;
 }
