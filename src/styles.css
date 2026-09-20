@@ -18,8 +18,18 @@
   box-sizing: border-box;
 }
 
+/* 主窗体内容区固定 800x708（minWidth/minHeight 也在 tauri.conf.json 限制），
+   整页不滚动；窗体被拉高时由内部弹性列表（targets-scroll）吸收增量高度 */
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
   margin: 0;
+  display: flex;
+  flex-direction: column;
   font-family:
     -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
     "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
@@ -34,6 +44,7 @@ body {
   padding: 10px 28px;
   background: linear-gradient(135deg, #1e3a8a, #2563eb);
   color: #fff;
+  flex-shrink: 0;
 }
 .app-header h1 {
   margin: 0;
@@ -48,10 +59,14 @@ body {
 
 .app-main {
   max-width: 1080px;
+  width: 100%;
   margin: 0 auto;
   padding: 20px;
   display: flex;
   flex-direction: column;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
 }
 
 /* 卡片 */
@@ -414,13 +429,21 @@ button.danger:hover:not(:disabled) {
   color: #a5f3fc;
 }
 
-/* 待重命名列表：固定高度滚动容器 + 矮行 */
+/* 待重命名列表：弹性占满卡片剩余高度（窗体高于 708 时自动加高），行内滚动 */
 .targets-scroll {
-  height: 320px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: #fff;
+}
+/* targets 卡片：列布局，列表占满剩余高度 */
+.card[data-block="targets"] {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 .assets-table th,
 .assets-table td {

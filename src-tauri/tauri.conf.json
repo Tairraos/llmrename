@@ -13,10 +13,10 @@
     "windows": [
       {
         "title": "LLM Rename — 视觉模型批量重命名",
-        "width": 900,
-        "height": 800,
-        "minWidth": 720,
-        "minHeight": 560
+        "width": 800,
+        "height": 708,
+        "minWidth": 800,
+        "minHeight": 708
       }
     ],
     "security": {
