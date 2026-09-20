@@ -278,6 +278,47 @@ button.danger:hover:not(:disabled) {
   width: 1em;
   height: 1em;
 }
+/* 选中列 checkbox 窄列 */
+.assets-table .sel-cell {
+  width: 28px;
+  text-align: center;
+}
+.assets-table th.sel-col {
+  width: 28px;
+  text-align: center;
+}
+.assets-table .row-sel,
+.assets-table #sel-all {
+  margin: 0;
+  width: 14px;
+  height: 14px;
+  accent-color: var(--accent);
+}
+/* 当前文件名：小手光标 + 悬停可点击聚焦目标名 */
+.assets-table .current-name {
+  cursor: pointer;
+}
+.assets-table .current-name:hover {
+  text-decoration: underline;
+  color: var(--accent-strong);
+}
+/* 行内操作按钮：undo 浅红、redo 浅绿 */
+.assets-table .ops .undo-btn {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #b91c1c;
+}
+.assets-table .ops .undo-btn:hover:not(:disabled) {
+  background: #fecaca;
+}
+.assets-table .ops .redo-btn {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #15803d;
+}
+.assets-table .ops .redo-btn:hover:not(:disabled) {
+  background: #bbf7d0;
+}
 
 /* 日志 */
 .log-list {

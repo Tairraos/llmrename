@@ -205,16 +205,46 @@ fn parse_content(resp: ChatResponse) -> Result<String> {
     Ok(content)
 }
 
-/// 剥离代码围栏并解析 JSON 对象。
+/// 剥离代码围栏并解析 JSON 对象；兼容模型返回单引号 JSON（非标准 JSON）。
 fn parse_json_text(content: &str) -> Result<ExtractedFieldsJson> {
     let trimmed = content.trim();
     let cleaned = strip_fence(trimmed);
-    serde_json::from_str(cleaned).map_err(|e| {
-        AppError::vision(format!(
-            "模型返回不是合法 JSON 对象：{e}（响应片段：{}）",
-            cleaned.chars().take(120).collect::<String>()
-        ))
+    serde_json::from_str(cleaned).or_else(|_| {
+        // 模型常输出 {'人物': '一男一女'}：把字符串外的单引号换成双引号再解析
+        let converted = single_quotes_to_double(cleaned);
+        serde_json::from_str(&converted).map_err(|e| {
+            AppError::vision(format!(
+                "模型返回不是合法 JSON 对象：{e}（响应片段：{}）",
+                cleaned.chars().take(120).collect::<String>()
+            ))
+        })
     })
+}
+
+/// 把字符串外的单引号替换为双引号（保留转义与双引号字符串内的内容）。
+fn single_quotes_to_double(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut in_string = false;
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '"' => {
+                out.push(c);
+                in_string = !in_string;
+            }
+            '\\' => {
+                // 转义：原样带走下一个字符（避免把 \" 中的引号当作闭合）
+                out.push(c);
+                if let Some(&n) = chars.peek() {
+                    out.push(n);
+                    chars.next();
+                }
+            }
+            '\'' if !in_string => out.push('"'),
+            _ => out.push(c),
+        }
+    }
+    out
 }
 
 fn strip_fence(s: &str) -> &str {
@@ -251,6 +281,33 @@ mod tests {
         assert_eq!(parse_json_text(s2).unwrap().fields["a"], "2");
         let s3 = "{\"a\":\"3\"}";
         assert_eq!(parse_json_text(s3).unwrap().fields["a"], "3");
+    }
+
+    #[test]
+    fn parses_single_quoted_json() {
+        // 模型常返回单引号 JSON：{'人物': '一男一女'}
+        let j = parse_json_text("{'人物': '一男一女', '动作': '在太空中飞行'}").unwrap();
+        assert_eq!(j.fields["人物"], "一男一女");
+        assert_eq!(j.fields["动作"], "在太空中飞行");
+    }
+
+    #[test]
+    fn single_quotes_inside_string_untouched() {
+        // 单引号替换需避免破坏双引号字符串内部 / 转义内容
+        let converted = single_quotes_to_double("{\"a\": \"it's\", 'b': 'x'}");
+        assert_eq!(converted, "{\"a\": \"it's\", \"b\": \"x\"}");
+        let j = parse_json_text("{\"a\": \"it's\", 'b': 'x'}").unwrap();
+        assert_eq!(j.fields["a"], "it's");
+        assert_eq!(j.fields["b"], "x");
+    }
+
+    #[test]
+    fn non_json_error_is_descriptive() {
+        let err = parse_json_text("not json at all").unwrap_err().to_string();
+        assert!(
+            err.contains("不是合法 JSON 对象"),
+            "错误应说明模型返回问题：{err}"
+        );
     }
 
     #[test]

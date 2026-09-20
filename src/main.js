@@ -69,7 +69,8 @@ function renderTargets() {
   }
   body.innerHTML = targets
     .map((t, i) => {
-      const safeName = escapeHtml(t.filename);
+      // 当前文件名列：与目标列一致不显示扩展名（title 保留完整文件名）
+      const curName = escapeHtml(splitNameExt(t.filename).name);
       const safeNamePart = escapeHtml(t.name);
       const extLabel = t.ext
         ? `<span class="target-ext" title="扩展名不可编辑">.${escapeHtml(t.ext)}</span>`
@@ -84,9 +85,12 @@ function renderTargets() {
       const undoDisabled = !(h.pos > 0 || edited);
       // redo：仅在目标名未被手动改动且有下一版本时可用
       const redoDisabled = !(!edited && h.pos < h.versions.length - 1);
+      const selected = t.selected !== false;
       return `<tr class="${changed ? "changed" : ""}" data-idx="${i}">
-        <td>${i + 1}</td>
-        <td class="current-name" title="${safeName}">${safeName}</td>
+        <td class="sel-cell">
+          <input type="checkbox" class="row-sel" data-idx="${i}" ${selected ? "checked" : ""} title="选中后才会被大模型解析" />
+        </td>
+        <td class="current-name" title="${escapeHtml(t.filename)}">${curName}</td>
         <td class="target-cell">
           <input
             class="target-input"
@@ -99,8 +103,8 @@ function renderTargets() {
         <td class="ops-cell">${
           showOps
             ? `<span class="ops">
-                <button type="button" class="op-btn" data-op="undo" data-idx="${i}" title="在目标名位置显示上一个文件名" ${undoDisabled ? "disabled" : ""}><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h24v24H0z" fill="none" /><path fill="currentColor" d="M15 7H5.06l2.97-2.97l-1.06-1.06l-3.895 3.895a1.26 1.26 0 0 0 0 1.77L6.97 12.53l1.06-1.06L5.06 8.5H15c2.48 0 4.5 2.02 4.5 4.5s-2.02 4.5-4.5 4.5H7V19h8c3.31 0 6-2.69 6-6s-2.69-6-6-6" /></svg></button>
-                <button type="button" class="op-btn" data-op="redo" data-idx="${i}" title="在目标名位置显示下一个文件名" ${redoDisabled ? "disabled" : ""}><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h24v24H0z" fill="none" /><path fill="currentColor" d="M20.925 6.865L17.03 2.97l-1.06 1.06L18.94 7H9c-3.31 0-6 2.69-6 6s2.69 6 6 6h8v-1.5H9c-2.48 0-4.5-2.02-4.5-4.5S6.52 8.5 9 8.5h9.94l-2.97 2.97l1.06 1.06l3.895-3.895a1.26 1.26 0 0 0 0-1.77" /></svg></button>
+                <button type="button" class="op-btn undo-btn" data-op="undo" data-idx="${i}" title="在目标名位置显示上一个文件名" ${undoDisabled ? "disabled" : ""}><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h24v24H0z" fill="none" /><path fill="currentColor" d="M15 7H5.06l2.97-2.97l-1.06-1.06l-3.895 3.895a1.26 1.26 0 0 0 0 1.77L6.97 12.53l1.06-1.06L5.06 8.5H15c2.48 0 4.5 2.02 4.5 4.5s-2.02 4.5-4.5 4.5H7V19h8c3.31 0 6-2.69 6-6s-2.69-6-6-6" /></svg></button>
+                <button type="button" class="op-btn redo-btn" data-op="redo" data-idx="${i}" title="在目标名位置显示下一个文件名" ${redoDisabled ? "disabled" : ""}><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h24v24H0z" fill="none" /><path fill="currentColor" d="M20.925 6.865L17.03 2.97l-1.06 1.06L18.94 7H9c-3.31 0-6 2.69-6 6s2.69 6 6 6h8v-1.5H9c-2.48 0-4.5-2.02-4.5-4.5S6.52 8.5 9 8.5h9.94l-2.97 2.97l1.06 1.06l3.895-3.895a1.26 1.26 0 0 0 0-1.77" /></svg></button>
               </span>`
             : ""
         }</td>
@@ -108,6 +112,24 @@ function renderTargets() {
     })
     .join("");
   $("#target-summary").textContent = `共 ${targets.length} 个文件`;
+  // 表头全选框状态跟随行选中
+  const selAll = $("#sel-all");
+  if (selAll) selAll.checked = targets.every((t) => t.selected !== false);
+  updateGlobalUndoRedo();
+}
+
+// 全局「撤销/重做」作用于列表所有行：任一文件可撤销/可重做才启用对应按钮
+function updateGlobalUndoRedo() {
+  const anyUndo = window.App.targets.some(
+    (t) => t.history.pos > 0 || composeTarget(t) !== t.history.versions[t.history.pos],
+  );
+  const anyRedo = window.App.targets.some(
+    (t) =>
+      composeTarget(t) === t.history.versions[t.history.pos] &&
+      t.history.pos < t.history.versions.length - 1,
+  );
+  $("#btn-undo").disabled = !anyUndo;
+  $("#btn-redo").disabled = !anyRedo;
 }
 
 function renderLogs() {
@@ -133,11 +155,7 @@ function renderLogs() {
 
 function renderHistory(historyStatus) {
   window.App.historyApplied = historyStatus;
-  $("#btn-undo").disabled = !historyStatus?.undoable;
-  $("#btn-redo").disabled = !historyStatus?.redoable;
-  if (historyStatus?.applied) {
-    showRunHint(`已应用：${historyStatus.applied}`, "ok");
-  }
+  // 全局撤销/重做按钮的可用态由列表行决定（见 updateGlobalUndoRedo）
 }
 
 function formatTs(ts) {
@@ -327,7 +345,7 @@ function mergeTargets(entries) {
     // history：行级版本历史（目标名位置的回溯导航），versions[0] 为最早、末尾为最新；
     // pos 指向目标名当前展示的版本。
     const history = { versions: [e.filename], pos: 0 };
-    window.App.targets.push({ path: e.path, filename: e.filename, name, ext, history });
+    window.App.targets.push({ path: e.path, filename: e.filename, name, ext, history, selected: true });
   }
   renderTargets();
 }
@@ -465,10 +483,10 @@ async function aiFillTargets(resume = false) {
     return;
   }
   const source = resume
-    ? window.App.targets.filter((t) => !window.App.fill.okPaths.has(t.path))
-    : window.App.targets;
+    ? window.App.targets.filter((t) => t.selected !== false && !window.App.fill.okPaths.has(t.path))
+    : window.App.targets.filter((t) => t.selected !== false);
   if (source.length === 0) {
-    showRunHint("没有可填充的文件，先添加文件", "err");
+    showRunHint("没有可填充的文件（勾选要解析的行，或先添加文件）", "err");
     return;
   }
   if (!hasTauri()) {
@@ -573,23 +591,19 @@ async function executeRename() {
 }
 
 async function undoRename() {
-  try {
-    const st = await invoke("undo_rename");
-    renderHistory(st);
-    await refreshLogs();
-  } catch (err) {
-    showRunHint(`撤销失败：${err}`, "err");
+  for (const t of window.App.targets) {
+    rowUndo(t);
   }
+  renderTargets();
+  showRunHint("已对所有文件执行一次撤销（在目标名位置显示上一个文件名）", "ok");
 }
 
 async function redoRename() {
-  try {
-    const st = await invoke("redo_rename");
-    renderHistory(st);
-    await refreshLogs();
-  } catch (err) {
-    showRunHint(`重做失败：${err}`, "err");
+  for (const t of window.App.targets) {
+    rowRedo(t);
   }
+  renderTargets();
+  showRunHint("已对所有文件执行一次重做（在目标名位置显示下一个文件名）", "ok");
 }
 
 async function refreshHistory() {
@@ -836,12 +850,22 @@ function bindEvents() {
     const inp = e.target;
     if (!inp.classList.contains("target-input")) return;
     const i = Number(inp.dataset.idx);
-    if (Number.isInteger(i) && window.App.targets[i]) {
-      window.App.targets[i].name = inp.value;
-      // 实时刷新行高亮（目标名 ≠ 当前名时淡蓝）
-      const tr = inp.closest("tr");
-      if (tr) tr.classList.toggle("changed", composeTarget(window.App.targets[i]) !== window.App.targets[i].filename);
+    if (!Number.isInteger(i) || !window.App.targets[i]) return;
+    const t = window.App.targets[i];
+    // 语音输入法会在句末补「。」，自动删除
+    let v = inp.value;
+    if (v.endsWith("。")) v = v.slice(0, -1);
+    if (v !== inp.value) inp.value = v;
+    t.name = v;
+    // 一旦修改文件名，checkbox 自动取消选中
+    if (t.selected !== false) {
+      t.selected = false;
+      const cb = inp.closest("tr")?.querySelector(".row-sel");
+      if (cb) cb.checked = false;
     }
+    // 实时刷新行高亮（目标名 ≠ 当前名时淡蓝）
+    const tr = inp.closest("tr");
+    if (tr) tr.classList.toggle("changed", composeTarget(t) !== t.filename);
   });
   // 失焦提交版本（行级 undo 可回溯到编辑前）
   $("#targets-body").addEventListener("change", (e) => {
@@ -854,6 +878,29 @@ function bindEvents() {
   });
   // 操作列：行内 undo/redo（在目标名位置显示上/下一个文件名）
   $("#targets-body").addEventListener("click", (e) => {
+    // 行选中 checkbox
+    const cb = e.target.closest(".row-sel");
+    if (cb) {
+      const i = Number(cb.dataset.idx);
+      const t = window.App.targets[i];
+      if (Number.isInteger(i) && t) {
+        t.selected = cb.checked;
+        // 同步全选框状态
+        const all = $("#sel-all");
+        if (all) all.checked = window.App.targets.every((x) => x.selected !== false);
+      }
+      return;
+    }
+    // 点击当前文件名：聚焦目标名输入框并全选（保持 hover 预览）
+    const cur = e.target.closest(".current-name");
+    if (cur) {
+      const inp = cur.closest("tr")?.querySelector(".target-input");
+      if (inp) {
+        inp.focus();
+        inp.select();
+      }
+      return;
+    }
     const btn = e.target.closest(".op-btn");
     if (!btn) return;
     const i = Number(btn.dataset.idx);
@@ -863,6 +910,14 @@ function bindEvents() {
     else if (btn.dataset.op === "redo") rowRedo(t);
     renderTargets();
   });
+  // 表头全选
+  const selAll = $("#sel-all");
+  if (selAll) {
+    selAll.addEventListener("change", () => {
+      for (const t of window.App.targets) t.selected = selAll.checked;
+      renderTargets();
+    });
+  }
 
   $("#btn-clear-targets").addEventListener("click", () => {
     window.App.targets = [];
@@ -935,19 +990,16 @@ async function boot() {
       switch (p.phase) {
         case "connecting":
           consoleStatus(`正在连接大模型（${p.url ?? "?"}）…`, "c-info");
-          showRunHint(`正在连接大模型（${p.url ?? "?"}）…`, "");
           break;
         case "extracting":
-          showRunHint(`正在解析 ${p.filename ?? "?"}（模型输出中）…`, "");
+          // 状态栏不显示提取/解析状态（由 console 面板展示），保留全量 console 输出
           break;
         case "parsing":
           consoleStatus(`正在解析 ${p.filename ?? "?"} 的模型返回…`, "c-info");
-          showRunHint(`正在解析 ${p.filename ?? "?"} 的模型返回…`, "");
           break;
         case "item-done": {
           const line = `[${p.index ?? "?"}/${p.total ?? "?"}] ${p.filename ?? "?"} ${p.ok ? "✓ 已填充" : "✗ 失败"}${p.target ? ` → ${p.target}` : ""}`;
           consoleStatus(line, p.ok ? "c-ok" : "c-err");
-          showRunHint(line, p.ok ? "" : "err");
           if (p.ok) window.App.fill.okPaths.add(p.path);
           break;
         }
