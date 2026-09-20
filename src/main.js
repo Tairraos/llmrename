@@ -14,6 +14,7 @@ window.App = {
   logs: [], // LogEntry[]
   running: false,
   historyApplied: null, // HistoryStatus
+  fill: { running: false, stopRequested: false, stopped: false, okPaths: new Set() },
 };
 
 /* ---------------- 渲染 ---------------- */
@@ -342,13 +343,16 @@ async function pickDir() {
 
 /* ---------------- AI 填充目标名 ---------------- */
 
-async function aiFillTargets() {
+async function aiFillTargets(resume = false) {
   const pattern = $("#template-pattern").value.trim();
   if (!pattern) {
     showRunHint("请先填写模板", "err");
     return;
   }
-  if (window.App.targets.length === 0) {
+  const source = resume
+    ? window.App.targets.filter((t) => !window.App.fill.okPaths.has(t.path))
+    : window.App.targets;
+  if (source.length === 0) {
     showRunHint("没有可填充的文件，先添加文件", "err");
     return;
   }
@@ -357,9 +361,13 @@ async function aiFillTargets() {
     return;
   }
   setRunning(true);
-  showRunHint(`开始填充目标名：共 ${window.App.targets.length} 个文件…`, "");
+  window.App.fill.running = true;
+  window.App.fill.stopRequested = false;
+  window.App.fill.stopped = false;
+  updateStopButton();
+  showRunHint(`开始填充目标名：共 ${source.length} 个文件…`, "");
   try {
-    const items = window.App.targets.map((t) => ({
+    const items = source.map((t) => ({
       path: t.path,
       target: composeTarget(t),
     }));
@@ -373,10 +381,21 @@ async function aiFillTargets() {
       }
     }
     renderTargets();
-    showRunHint("目标名已填充，可手动调整后执行", "ok");
+    const remaining = window.App.targets.filter(
+      (t) => !window.App.fill.okPaths.has(t.path),
+    );
+    if (window.App.fill.stopRequested && remaining.length > 0) {
+      window.App.fill.stopped = true;
+      showRunHint(`已停止：剩余 ${remaining.length} 个文件未解析，点「继续」恢复`, "");
+    } else {
+      showRunHint("目标名已填充，可手动调整后执行", "ok");
+    }
   } catch (err) {
     showRunHint(String(err), "err");
   } finally {
+    window.App.fill.running = false;
+    window.App.fill.stopRequested = false;
+    updateStopButton();
     setRunning(false);
   }
 }
@@ -495,6 +514,28 @@ async function loadVersion() {
   }
 }
 
+/* ---------------- 填充停止/继续按钮状态机 ---------------- */
+/* 未开始 → disabled「停止」；进行中 → 可点「停止」；停止中 → disabled「停止中…」；
+   已停止且有未解析文件 → 可点「继续」；全部完成 → disabled */
+function updateStopButton() {
+  const btn = $("#btn-stop-fill");
+  if (!btn) return;
+  const f = window.App.fill;
+  if (f.running && f.stopRequested) {
+    btn.disabled = true;
+    btn.textContent = "停止中…";
+  } else if (f.running) {
+    btn.disabled = false;
+    btn.textContent = "停止";
+  } else if (f.stopped) {
+    btn.disabled = false;
+    btn.textContent = "继续";
+  } else {
+    btn.disabled = true;
+    btn.textContent = "停止";
+  }
+}
+
 function setRunning(r) {
   window.App.running = r;
   for (const id of ["btn-execute", "btn-ai-fill", "btn-pick-files", "btn-pick-dir"]) {
@@ -596,7 +637,17 @@ function bindEvents() {
     const chip = e.target.closest(".chip");
     if (chip) insertFieldChip(chip.dataset.field);
   });
-  $("#btn-ai-fill").addEventListener("click", aiFillTargets);
+  $("#btn-ai-fill").addEventListener("click", () => aiFillTargets(false));
+  $("#btn-stop-fill").addEventListener("click", () => {
+    const f = window.App.fill;
+    if (f.running && !f.stopRequested) {
+      f.stopRequested = true;
+      updateStopButton();
+      invoke("stop_ai_fill").catch((err) => showRunHint(String(err), "err"));
+    } else if (!f.running && f.stopped) {
+      aiFillTargets(true);
+    }
+  });
 
   $("#btn-pick-files").addEventListener("click", (e) => {
     e.stopPropagation();
@@ -660,6 +711,9 @@ function bindEvents() {
 
   $("#btn-clear-targets").addEventListener("click", () => {
     window.App.targets = [];
+    window.App.fill.okPaths.clear();
+    window.App.fill.stopped = false;
+    updateStopButton();
     renderTargets();
   });
   $("#btn-execute").addEventListener("click", executeRename);
@@ -739,8 +793,15 @@ async function boot() {
           const line = `[${p.index ?? "?"}/${p.total ?? "?"}] ${p.filename ?? "?"} ${p.ok ? "✓ 已填充" : "✗ 失败"}${p.target ? ` → ${p.target}` : ""}`;
           consoleStatus(line, p.ok ? "c-ok" : "c-err");
           showRunHint(line, p.ok ? "" : "err");
+          if (p.ok) window.App.fill.okPaths.add(p.path);
           break;
         }
+        case "stopped":
+          consoleStatus(
+            `已停止：剩余 ${p.remaining ?? "?"} 个文件未解析，可点「继续」恢复`,
+            "c-err",
+          );
+          break;
       }
     });
     await listen("rename-progress", (e) => {

@@ -21,6 +21,7 @@ pub fn run() {
             runtime::commands::preview_rename,
             runtime::commands::collect_targets,
             runtime::commands::ai_fill_targets,
+            runtime::commands::stop_ai_fill,
             runtime::commands::rename_items,
             runtime::commands::undo_rename,
             runtime::commands::redo_rename,

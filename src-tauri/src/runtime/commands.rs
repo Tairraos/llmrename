@@ -3,6 +3,8 @@
 
 use std::path::{Path, PathBuf};
 
+use std::sync::atomic::Ordering;
+
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::config;
@@ -127,10 +129,33 @@ pub async fn ai_fill_targets(
     pattern: String,
     state: State<'_, AppState>,
 ) -> Result<Vec<RenameItem>> {
+    // 每次发起填充（含「继续」）都重置停止标志
+    state.ai_fill_stop.store(false, Ordering::Relaxed);
     let model = state.config.lock().unwrap().model.clone();
     let total = items.len();
     let mut out = Vec::with_capacity(total);
     for (idx, it) in items.iter().enumerate() {
+        // 用户请求停止：在文件边界停下来（当前正在解析的这个文件会完成）
+        if state.ai_fill_stop.load(Ordering::Relaxed) {
+            let remaining = total - idx;
+            let _ = app.emit(
+                "vision-status",
+                serde_json::json!({
+                    "phase": "stopped",
+                    "index": idx,
+                    "total": total,
+                    "remaining": remaining,
+                }),
+            );
+            // 未解析的文件保持原目标名返回（前端标记为待继续）
+            for rest in &items[idx..] {
+                out.push(RenameItem {
+                    path: rest.path.clone(),
+                    target: rest.target.clone(),
+                });
+            }
+            return Ok(out);
+        }
         let path = PathBuf::from(&it.path);
         let filename = path
             .file_name()
@@ -239,6 +264,13 @@ pub async fn ai_fill_targets(
         }
     }
     Ok(out)
+}
+
+/// 请求停止大模型填充（在当前文件解析完成后于文件边界生效）。
+#[tauri::command]
+pub async fn stop_ai_fill(state: State<'_, AppState>) -> Result<()> {
+    state.ai_fill_stop.store(true, Ordering::Relaxed);
+    Ok(())
 }
 
 /// 按显式目标名批量重命名。
