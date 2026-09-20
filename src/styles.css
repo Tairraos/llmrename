@@ -30,9 +30,7 @@ body {
   margin: 0;
   display: flex;
   flex-direction: column;
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
-    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   background: var(--bg);
   color: var(--text);
   font-size: 14px;
@@ -64,7 +62,6 @@ body {
   padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
   flex: 1;
   min-height: 0;
 }
@@ -125,7 +122,9 @@ button {
   color: var(--text);
   font-size: 13px;
   cursor: pointer;
-  transition: background 0.12s, border-color 0.12s;
+  transition:
+    background 0.12s,
+    border-color 0.12s;
 }
 button:hover {
   background: #f3f4f6;
@@ -392,7 +391,9 @@ button.danger:hover:not(:disabled) {
   border-radius: 6px;
   text-align: center;
   color: var(--muted);
-  transition: border-color 0.15s, background 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
 }
 .drop-zone.dragging {
   border-color: var(--accent);
@@ -555,7 +556,6 @@ button.danger:hover:not(:disabled) {
   font-size: 13px;
   line-height: 1;
 }
-
 
 /* 模板摘要行 */
 .template-bar {

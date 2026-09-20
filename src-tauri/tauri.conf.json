@@ -14,9 +14,9 @@
       {
         "title": "LLM Rename — 视觉模型批量重命名",
         "width": 800,
-        "height": 708,
+        "height": 700,
         "minWidth": 800,
-        "minHeight": 708
+        "minHeight": 700
       }
     ],
     "security": {
