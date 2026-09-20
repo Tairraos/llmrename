@@ -221,18 +221,33 @@ button.danger:hover:not(:disabled) {
 .assets-table td:first-child {
   width: 28px;
 }
-.assets-table td:nth-child(5) {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
-  color: var(--accent-strong);
-}
-.assets-table .old-name {
+.assets-table .current-name {
   max-width: 320px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .assets-table tbody tr:hover {
   background: #f8fafc;
+}
+/* 目标名与当前文件名不一致的行：淡蓝底色（执行重命名时会受影响） */
+.assets-table tbody tr.changed {
+  background: #e8f1ff;
+}
+.assets-table tbody tr.changed:hover {
+  background: #dcebff;
+}
+/* 操作列：行内 undo/redo 图标按钮（默认整列为空） */
+.assets-table .ops-cell {
+  width: 96px;
+}
+.assets-table .ops {
+  display: inline-flex;
+  gap: 4px;
+}
+.assets-table .ops .op-btn {
+  padding: 1px 8px;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 /* 日志 */
@@ -422,7 +437,7 @@ button.danger:hover:not(:disabled) {
   background: #fafbfc;
   box-shadow: inset 0 -1px 0 var(--border);
 }
-.assets-table .old-name {
+.assets-table .current-name {
   max-width: 340px;
   overflow: hidden;
   text-overflow: ellipsis;

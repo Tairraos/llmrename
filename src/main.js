@@ -63,7 +63,7 @@ function renderTargets() {
   const targets = window.App.targets;
   if (targets.length === 0) {
     body.innerHTML =
-      '<tr><td colspan="3"><span class="empty-note">尚未添加文件——拖入图片/文件夹，或点下面按钮选择</span></td></tr>';
+      '<tr><td colspan="4"><span class="empty-note">尚未添加文件——拖入图片/文件夹，或点下面按钮选择</span></td></tr>';
     $("#target-summary").textContent = "";
     return;
   }
@@ -74,9 +74,19 @@ function renderTargets() {
       const extLabel = t.ext
         ? `<span class="target-ext" title="扩展名不可编辑">.${escapeHtml(t.ext)}</span>`
         : "";
-      return `<tr>
+      // 目标名 ≠ 当前文件名：本行会在执行重命名时受影响，淡蓝底色
+      const changed = composeTarget(t) !== t.filename;
+      // 行级版本历史：有可导航的历史（>1 个版本，或目标名有未提交的编辑）才显示操作按钮
+      const h = t.history;
+      const edited = composeTarget(t) !== h.versions[h.pos];
+      const showOps = h.versions.length > 1 || edited;
+      // undo：可回上一版本，或被手动改过（回到当前版本）
+      const undoDisabled = !(h.pos > 0 || edited);
+      // redo：仅在目标名未被手动改动且有下一版本时可用
+      const redoDisabled = !(!edited && h.pos < h.versions.length - 1);
+      return `<tr class="${changed ? "changed" : ""}" data-idx="${i}">
         <td>${i + 1}</td>
-        <td class="old-name" title="${safeName}">${safeName}</td>
+        <td class="current-name" title="${safeName}">${safeName}</td>
         <td class="target-cell">
           <input
             class="target-input"
@@ -86,6 +96,14 @@ function renderTargets() {
             spellcheck="false"
           />${extLabel}
         </td>
+        <td class="ops-cell">${
+          showOps
+            ? `<span class="ops">
+                <button type="button" class="op-btn" data-op="undo" data-idx="${i}" title="在目标名位置显示上一个文件名" ${undoDisabled ? "disabled" : ""}>↶</button>
+                <button type="button" class="op-btn" data-op="redo" data-idx="${i}" title="在目标名位置显示下一个文件名" ${redoDisabled ? "disabled" : ""}>↷</button>
+              </span>`
+            : ""
+        }</td>
       </tr>`;
     })
     .join("");
@@ -306,9 +324,106 @@ function mergeTargets(entries) {
     existing.add(e.path);
     const { name, ext } = splitNameExt(e.filename);
     // 默认目标名 = 原文件名（不含扩展名；扩展名固定不可编辑）
-    window.App.targets.push({ path: e.path, filename: e.filename, name, ext });
+    // history：行级版本历史（目标名位置的回溯导航），versions[0] 为最早、末尾为最新；
+    // pos 指向目标名当前展示的版本。
+    const history = { versions: [e.filename], pos: 0 };
+    window.App.targets.push({ path: e.path, filename: e.filename, name, ext, history });
   }
   renderTargets();
+}
+
+/* ---------------- 行级版本历史（目标名位置 undo/redo） ---------------- */
+
+// 行记录的版本历史最多保留条数（与全局历史容量一致）
+const ROW_HISTORY_CAP = 10;
+
+// 目标名相对当前版本是否被手动改过（未提交）
+function rowEdited(t) {
+  return composeTarget(t) !== t.history.versions[t.history.pos];
+}
+
+// 目标名提交：把目标名（可能手动编辑过）追加为该行的最新版本，pos 指向它
+function rowCommit(t) {
+  const h = t.history;
+  const target = composeTarget(t);
+  if (h.versions[h.pos] === target) return;
+  // 从 pos 之后截断（新分支），再追加
+  h.versions = h.versions.slice(0, h.pos + 1);
+  h.versions.push(target);
+  // 保留最近 ROW_HISTORY_CAP 个版本
+  if (h.versions.length > ROW_HISTORY_CAP) h.versions = h.versions.slice(-ROW_HISTORY_CAP);
+  h.pos = h.versions.length - 1;
+}
+
+// 行级 undo：在目标名位置显示上一个文件名
+function rowUndo(t) {
+  const h = t.history;
+  const edited = composeTarget(t) !== h.versions[h.pos];
+  if (edited) {
+    // 目标名被手动改过：undo 先回到未提交时的版本
+    const target = h.versions[h.pos];
+    const { name } = splitNameExt(target);
+    t.name = name;
+    return;
+  }
+  if (h.pos <= 0) return;
+  h.pos -= 1;
+  const { name } = splitNameExt(h.versions[h.pos]);
+  t.name = name;
+}
+
+// 行级 redo：在目标名位置显示下一个文件名（目标名被手动改过时无下一个）
+function rowRedo(t) {
+  const h = t.history;
+  if (composeTarget(t) !== h.versions[h.pos]) {
+    // 目标名被手动改过（未提交）：redo 无下一个，disabled
+    return;
+  }
+  if (h.pos >= h.versions.length - 1) return;
+  h.pos += 1;
+  const { name } = splitNameExt(h.versions[h.pos]);
+  t.name = name;
+}
+
+// 目标文件被真正重命名后：更新当前文件名、路径与版本链
+function rowApplied(t, newFilename) {
+  t.filename = newFilename;
+  t.path = joinPath(t.path, newFilename);
+  t.ext = splitNameExt(newFilename).ext;
+  t.name = splitNameExt(newFilename).name;
+  const h = t.history;
+  // 版本链以当前文件名为准重建（历史中如果有同名跳过）
+  const versions = [...new Set([...h.versions, newFilename])];
+  t.history = { versions: versions.slice(-ROW_HISTORY_CAP), pos: versions.length - 1 };
+}
+
+function joinPath(path, filename) {
+  const idx = path.lastIndexOf("/");
+  return idx < 0 ? filename : path.slice(0, idx + 1) + filename;
+}
+
+// 重命名后同步每行路径与名字（行内 undo/redo 只动目标名，真正改名在「开始重命名」）
+function syncRowAfterRename(outcomes) {
+  const byFromPath = new Map(
+    outcomes
+      .filter((o) => o.status === "ok")
+      .map((o) => [normalizePath(o.from), normalizePath(o.to)]),
+  );
+  const byToPath = new Map(
+    Array.from(byFromPath.entries()).map(([from, to]) => [to, from]),
+  );
+  for (const t of window.App.targets) {
+    const p = normalizePath(t.path);
+    if (byFromPath.has(p)) {
+      const to = byFromPath.get(p);
+      const newFilename = to.slice(to.lastIndexOf("/") + 1);
+      rowApplied(t, newFilename);
+    }
+  }
+}
+
+function normalizePath(p) {
+  return String(p).replace(/\\/g, "/");
 }
 
 async function pickFiles() {
@@ -378,6 +493,8 @@ async function aiFillTargets(resume = false) {
         // 模型返回完整文件名（后端已按原扩展名拼接），拆回 name + ext
         const { name } = splitNameExt(byPath.get(t.path));
         t.name = name;
+        // AI 填充结果作为新版本提交（行级 undo 可回溯到填充前）
+        rowCommit(t);
       }
     }
     renderTargets();
@@ -416,10 +533,19 @@ async function executeRename() {
   for (const inp of inputs) {
     const i = Number(inp.dataset.idx);
     if (Number.isInteger(i) && window.App.targets[i]) {
-      window.App.targets[i].target = inp.value.trim();
+      window.App.targets[i].name = inp.value.trim();
+      // 编辑结果提交为版本（行级 undo 可回溯）
+      rowCommit(window.App.targets[i]);
     }
   }
-  const items = window.App.targets.map((t) => ({
+  // 目标文件名与当前文件名一致的行：无需重命名动作（跳过），不发后端
+  const changedItems = window.App.targets.filter((t) => composeTarget(t) !== t.filename);
+  const skipSame = window.App.targets.length - changedItems.length;
+  if (changedItems.length === 0) {
+    showRunHint(`当前文件名与目标文件名一致，无需重命名（跳过 ${skipSame} 行）`, "");
+    return;
+  }
+  const items = changedItems.map((t) => ({
     path: t.path,
     target: composeTarget(t),
   }));
@@ -432,16 +558,13 @@ async function executeRename() {
     const skipCount = outcomes.filter((o) => o.status === "skipped").length;
     renderHistory(historyStatus);
     await refreshLogs();
+    // 成功的行保留在列表：更新当前文件名/路径/版本链，背景色随一致恢复
+    syncRowAfterRename(outcomes);
+    renderTargets();
     showRunHint(
-      `完成：成功 ${okCount} · 失败 ${failCount} · 跳过 ${skipCount}`,
+      `完成：成功 ${okCount} · 失败 ${failCount} · 跳过 ${skipCount + skipSame}`,
       failCount + skipCount > 0 ? "" : "ok",
     );
-    // 从列表移除已成功的（保留失败/跳过便于重试）
-    const failedPaths = new Set(
-      outcomes.filter((o) => o.status !== "ok").map((o) => o.from),
-    );
-    window.App.targets = window.App.targets.filter((t) => failedPaths.has(t.path));
-    renderTargets();
   } catch (err) {
     showRunHint(String(err), "err");
   } finally {
@@ -678,7 +801,7 @@ function bindEvents() {
     }
   };
   $("#targets-body").addEventListener("mouseover", (e) => {
-    const cell = e.target.closest(".old-name");
+    const cell = e.target.closest(".current-name");
     if (!cell || !hasTauri()) return;
     const i = Number(cell.closest("tr")?.querySelector(".target-input")?.dataset.idx);
     const t = window.App.targets[i];
@@ -701,7 +824,7 @@ function bindEvents() {
     preview.style.top = `${Math.max(8, y)}px`;
   });
   $("#targets-body").addEventListener("mouseout", (e) => {
-    if (e.target.closest(".old-name")) preview.hidden = true;
+    if (e.target.closest(".current-name")) preview.hidden = true;
   });
   // 图片加载失败（文件被移动/非图片）时隐藏弹层
   previewImg.addEventListener("error", () => {
@@ -715,7 +838,30 @@ function bindEvents() {
     const i = Number(inp.dataset.idx);
     if (Number.isInteger(i) && window.App.targets[i]) {
       window.App.targets[i].name = inp.value;
+      // 实时刷新行高亮（目标名 ≠ 当前名时淡蓝）
+      const tr = inp.closest("tr");
+      if (tr) tr.classList.toggle("changed", composeTarget(window.App.targets[i]) !== window.App.targets[i].filename);
     }
+  });
+  // 失焦提交版本（行级 undo 可回溯到编辑前）
+  $("#targets-body").addEventListener("change", (e) => {
+    const inp = e.target;
+    if (!inp.classList.contains("target-input")) return;
+    const i = Number(inp.dataset.idx);
+    const t = window.App.targets[i];
+    if (Number.isInteger(i) && t) rowCommit(t);
+    renderTargets();
+  });
+  // 操作列：行内 undo/redo（在目标名位置显示上/下一个文件名）
+  $("#targets-body").addEventListener("click", (e) => {
+    const btn = e.target.closest(".op-btn");
+    if (!btn) return;
+    const i = Number(btn.dataset.idx);
+    const t = window.App.targets[i];
+    if (!Number.isInteger(i) || !t) return;
+    if (btn.dataset.op === "undo") rowUndo(t);
+    else if (btn.dataset.op === "redo") rowRedo(t);
+    renderTargets();
   });
 
   $("#btn-clear-targets").addEventListener("click", () => {
