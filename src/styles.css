@@ -31,7 +31,7 @@ body {
 
 /* 顶部 */
 .app-header {
-  padding: 18px 28px;
+  padding: 10px 28px;
   background: linear-gradient(135deg, #1e3a8a, #2563eb);
   color: #fff;
 }
@@ -49,7 +49,7 @@ body {
 .app-main {
   max-width: 1080px;
   margin: 0 auto;
-  padding: 22px 24px 40px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
 }
@@ -317,7 +317,7 @@ button.danger:hover:not(:disabled) {
 }
 .header-actions {
   position: absolute;
-  top: 16px;
+  top: 8px;
   right: 24px;
   display: flex;
   gap: 8px;
