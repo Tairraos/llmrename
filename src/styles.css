@@ -294,13 +294,9 @@ button.danger:hover:not(:disabled) {
   height: 14px;
   accent-color: var(--accent);
 }
-/* 当前文件名：小手光标 + 悬停可点击聚焦目标名 */
+/* 当前文件名：小手光标（点击聚焦目标名），hover 不改样式不换色 */
 .assets-table .current-name {
   cursor: pointer;
-}
-.assets-table .current-name:hover {
-  text-decoration: underline;
-  color: var(--accent-strong);
 }
 /* 行内操作按钮：undo 浅红、redo 浅绿 */
 .assets-table .ops .undo-btn {

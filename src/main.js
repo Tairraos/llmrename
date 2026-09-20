@@ -870,9 +870,9 @@ function bindEvents() {
     const i = Number(inp.dataset.idx);
     if (!Number.isInteger(i) || !window.App.targets[i]) return;
     const t = window.App.targets[i];
-    // 语音输入法会在句末补「。」，自动删除
+    // 语音输入法常在句末补「。」，偶尔补「啊」：均自动删除
     let v = inp.value;
-    if (v.endsWith("。")) v = v.slice(0, -1);
+    while (v.endsWith("。") || v.endsWith("啊")) v = v.slice(0, -1);
     if (v !== inp.value) inp.value = v;
     t.name = v;
     // 手动修改目标名：pos 之后的队列立即清空（redo 不能走旧历史）
