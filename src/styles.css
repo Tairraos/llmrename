@@ -52,7 +52,6 @@ body {
   padding: 22px 24px 40px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
 }
 
 /* 卡片 */
@@ -145,6 +144,7 @@ button.danger:hover:not(:disabled) {
   display: flex;
   align-items: center;
   gap: 10px;
+  margin-top: 10px;
 }
 .row {
   margin-bottom: 10px;
@@ -341,7 +341,6 @@ button.danger:hover:not(:disabled) {
   display: flex;
   gap: 14px;
   align-items: stretch;
-  margin-bottom: 10px;
 }
 .drop-zone {
   width: 200px;
@@ -523,6 +522,10 @@ button.danger:hover:not(:disabled) {
 }
 /* 解析 / 停止按钮靠右对齐 */
 .template-bar #btn-ai-fill {
+  margin-left: auto;
+}
+/* 底部操作区按钮（撤销/重做/清空/开始）靠右对齐，左侧提示文本不动 */
+.actions #btn-undo {
   margin-left: auto;
 }
 /* 日志 dialog：确定大小，日志内容区固定高度、超出滚动 */
