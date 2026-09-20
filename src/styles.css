@@ -535,3 +535,23 @@ button.danger:hover:not(:disabled) {
   max-height: none;
   margin-bottom: 12px;
 }
+
+/* hover 原文件名的图片预览弹层 */
+.img-preview {
+  position: fixed;
+  z-index: 1000;
+  max-width: 280px;
+  max-height: 280px;
+  padding: 6px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.22);
+  pointer-events: none;
+}
+.img-preview img {
+  display: block;
+  max-width: 268px;
+  max-height: 268px;
+  border-radius: 4px;
+}

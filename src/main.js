@@ -607,6 +607,47 @@ function bindEvents() {
     pickDir();
   });
 
+  // hover 原文件名：弹出图片预览（asset 协议加载本地文件）
+  const preview = $("#img-preview");
+  const previewImg = $("#img-preview-img");
+  const fileSrc = (path) => {
+    try {
+      return window.__TAURI__.core.convertFileSrc(path);
+    } catch {
+      return null;
+    }
+  };
+  $("#targets-body").addEventListener("mouseover", (e) => {
+    const cell = e.target.closest(".old-name");
+    if (!cell || !hasTauri()) return;
+    const i = Number(cell.closest("tr")?.querySelector(".target-input")?.dataset.idx);
+    const t = window.App.targets[i];
+    if (!t) return;
+    const src = fileSrc(t.path);
+    if (!src) return;
+    previewImg.src = src;
+    preview.hidden = false;
+  });
+  $("#targets-body").addEventListener("mousemove", (e) => {
+    if (preview.hidden) return;
+    const pad = 14;
+    const w = preview.offsetWidth || 280;
+    const h = preview.offsetHeight || 280;
+    let x = e.clientX + pad;
+    let y = e.clientY + pad;
+    if (x + w > window.innerWidth - 8) x = e.clientX - w - pad;
+    if (y + h > window.innerHeight - 8) y = e.clientY - h - pad;
+    preview.style.left = `${Math.max(8, x)}px`;
+    preview.style.top = `${Math.max(8, y)}px`;
+  });
+  $("#targets-body").addEventListener("mouseout", (e) => {
+    if (e.target.closest(".old-name")) preview.hidden = true;
+  });
+  // 图片加载失败（文件被移动/非图片）时隐藏弹层
+  previewImg.addEventListener("error", () => {
+    preview.hidden = true;
+  });
+
   // 目标名编辑（仅文件名部分；扩展名固定不可编辑）
   $("#targets-body").addEventListener("input", (e) => {
     const inp = e.target;
