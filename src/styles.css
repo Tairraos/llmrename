@@ -161,6 +161,14 @@ button.danger:hover:not(:disabled) {
   gap: 10px;
   margin-top: 10px;
 }
+.actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.actions button svg {
+  flex-shrink: 0;
+}
 .row {
   margin-bottom: 10px;
 }
@@ -197,8 +205,8 @@ button.danger:hover:not(:disabled) {
   border: 1px solid #c7d2fe;
   border-radius: 999px;
   padding: 2px 10px;
-  font-size: 12px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  font-family: inherit;
 }
 .chip-list .chip:hover {
   background: #e0e7ff;
@@ -263,6 +271,13 @@ button.danger:hover:not(:disabled) {
   padding: 1px 8px;
   font-size: 13px;
   line-height: 1.5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.assets-table .ops .op-btn svg {
+  width: 1em;
+  height: 1em;
 }
 
 /* 日志 */
@@ -343,9 +358,15 @@ button.danger:hover:not(:disabled) {
   color: #fff;
   padding: 6px 12px;
   border-radius: 6px;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.header-actions .header-btn svg {
+  flex-shrink: 0;
 }
 .header-btn:hover {
   background: rgba(255, 255, 255, 0.28);
@@ -531,7 +552,7 @@ button.danger:hover:not(:disabled) {
 }
 .icon-btn {
   padding: 7px 11px;
-  font-size: 15px;
+  font-size: 13px;
   line-height: 1;
 }
 

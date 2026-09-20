@@ -99,8 +99,8 @@ function renderTargets() {
         <td class="ops-cell">${
           showOps
             ? `<span class="ops">
-                <button type="button" class="op-btn" data-op="undo" data-idx="${i}" title="在目标名位置显示上一个文件名" ${undoDisabled ? "disabled" : ""}>↶</button>
-                <button type="button" class="op-btn" data-op="redo" data-idx="${i}" title="在目标名位置显示下一个文件名" ${redoDisabled ? "disabled" : ""}>↷</button>
+                <button type="button" class="op-btn" data-op="undo" data-idx="${i}" title="在目标名位置显示上一个文件名" ${undoDisabled ? "disabled" : ""}><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h24v24H0z" fill="none" /><path fill="currentColor" d="M15 7H5.06l2.97-2.97l-1.06-1.06l-3.895 3.895a1.26 1.26 0 0 0 0 1.77L6.97 12.53l1.06-1.06L5.06 8.5H15c2.48 0 4.5 2.02 4.5 4.5s-2.02 4.5-4.5 4.5H7V19h8c3.31 0 6-2.69 6-6s-2.69-6-6-6" /></svg></button>
+                <button type="button" class="op-btn" data-op="redo" data-idx="${i}" title="在目标名位置显示下一个文件名" ${redoDisabled ? "disabled" : ""}><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h24v24H0z" fill="none" /><path fill="currentColor" d="M20.925 6.865L17.03 2.97l-1.06 1.06L18.94 7H9c-3.31 0-6 2.69-6 6s2.69 6 6 6h8v-1.5H9c-2.48 0-4.5-2.02-4.5-4.5S6.52 8.5 9 8.5h9.94l-2.97 2.97l1.06 1.06l3.895-3.895a1.26 1.26 0 0 0 0-1.77" /></svg></button>
               </span>`
             : ""
         }</td>
