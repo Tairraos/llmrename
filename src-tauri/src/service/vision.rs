@@ -48,13 +48,7 @@ pub async fn extract_abs(
         ))
     })?;
     let b64 = base64::engine::general_purpose::STANDARD.encode(bytes);
-    let asset = crate::types::AssetEntry {
-        path: path.to_string_lossy().into_owned(),
-        filename,
-        size_bytes: 0,
-        modified_secs: None,
-    };
-    let body = build_body(model, &asset, pattern, &fields, &mime, &b64);
+    let body = build_body(model, &fields, &mime, &b64);
     let content = send_and_collect(model, body, on_event).await?;
     let extracted: ExtractedFieldsJson = parse_json_text(&content)?;
     serde_json::to_string(&extracted.fields)
@@ -77,14 +71,7 @@ fn mime_for(filename: &str) -> String {
     }
 }
 
-fn build_body(
-    model: &ModelConfig,
-    asset: &crate::types::AssetEntry,
-    pattern: &str,
-    fields: &[String],
-    mime: &str,
-    b64: &str,
-) -> serde_json::Value {
+fn build_body(model: &ModelConfig, fields: &[String], mime: &str, b64: &str) -> serde_json::Value {
     json!({
         "model": model.model,
         "messages": [
@@ -92,7 +79,7 @@ fn build_body(
             {
                 "role": "user",
                 "content": [
-                    { "type": "text", "text": crate::service::prompts::user_prompt(&asset.filename, pattern, fields) },
+                    { "type": "text", "text": crate::service::prompts::user_prompt(fields) },
                     {
                         "type": "image_url",
                         "image_url": { "url": format!("data:{mime};base64,{b64}") }
