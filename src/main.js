@@ -118,12 +118,14 @@ function renderTargets() {
   updateGlobalUndoRedo();
 }
 
-// 全局「撤销/重做」作用于列表所有行：任一文件可撤销/可重做才启用对应按钮
+// 全局「撤销/重做」只对 checkbox 勾选的行批量操作：
+// 勾选行中任一行可撤销/可重做才启用对应按钮
 function updateGlobalUndoRedo() {
-  const anyUndo = window.App.targets.some(
+  const selected = window.App.targets.filter((t) => t.selected !== false);
+  const anyUndo = selected.some(
     (t) => t.history.pos > 0 || composeTarget(t) !== t.history.versions[t.history.pos],
   );
-  const anyRedo = window.App.targets.some(
+  const anyRedo = selected.some(
     (t) =>
       composeTarget(t) === t.history.versions[t.history.pos] &&
       t.history.pos < t.history.versions.length - 1,
@@ -374,13 +376,15 @@ function rowCommit(t) {
 }
 
 // 行级 undo：在目标名位置显示上一个文件名
+// 编辑态（目标名未入队）：先把 undo 前的目标名放入队列末尾，再回退一格
 function rowUndo(t) {
   const h = t.history;
   const edited = composeTarget(t) !== h.versions[h.pos];
   if (edited) {
-    // 目标名被手动改过：undo 先回到未提交时的版本
-    const target = h.versions[h.pos];
-    const { name } = splitNameExt(target);
+    rowCommit(t);
+    if (h.pos <= 0) return;
+    h.pos -= 1;
+    const { name } = splitNameExt(h.versions[h.pos]);
     t.name = name;
     return;
   }
@@ -388,6 +392,14 @@ function rowUndo(t) {
   h.pos -= 1;
   const { name } = splitNameExt(h.versions[h.pos]);
   t.name = name;
+}
+
+// 目标名被手动修改：pos 之后的队列立即清空（新分支，redo 不能走旧历史）
+function rowTruncate(t) {
+  const h = t.history;
+  if (composeTarget(t) !== h.versions[h.pos] && h.pos < h.versions.length - 1) {
+    h.versions = h.versions.slice(0, h.pos + 1);
+  }
 }
 
 // 行级 redo：在目标名位置显示下一个文件名（目标名被手动改过时无下一个）
@@ -403,16 +415,18 @@ function rowRedo(t) {
   t.name = name;
 }
 
-// 目标文件被真正重命名后：更新当前文件名、路径与版本链
+// 目标文件被真正重命名后：更新当前文件名、路径与版本链，并取消勾选
+// 队列第一个恒为当前文件名：新名置顶，旧当前名移出，其余历史去重保留
 function rowApplied(t, newFilename) {
+  const oldFilename = t.filename;
   t.filename = newFilename;
   t.path = joinPath(t.path, newFilename);
   t.ext = splitNameExt(newFilename).ext;
   t.name = splitNameExt(newFilename).name;
-  const h = t.history;
-  // 版本链以当前文件名为准重建（历史中如果有同名跳过）
-  const versions = [...new Set([...h.versions, newFilename])];
-  t.history = { versions: versions.slice(-ROW_HISTORY_CAP), pos: versions.length - 1 };
+  const rest = t.history.versions.filter((v) => v !== oldFilename && v !== newFilename);
+  t.history = { versions: [newFilename, ...rest].slice(0, ROW_HISTORY_CAP), pos: 0 };
+  // 真正被 rename 的文件自动取消勾选
+  t.selected = false;
 }
 
 function joinPath(path, filename) {
@@ -552,15 +566,17 @@ async function executeRename() {
     const i = Number(inp.dataset.idx);
     if (Number.isInteger(i) && window.App.targets[i]) {
       window.App.targets[i].name = inp.value.trim();
-      // 编辑结果提交为版本（行级 undo 可回溯）
+      // 执行前：把当前目标名入队（供行级 undo 回溯）
       rowCommit(window.App.targets[i]);
     }
   }
-  // 目标文件名与当前文件名一致的行：无需重命名动作（跳过），不发后端
-  const changedItems = window.App.targets.filter((t) => composeTarget(t) !== t.filename);
+  // 仅处理「被勾选 且 目标名 ≠ 当前名」的行；其余跳过
+  const changedItems = window.App.targets.filter(
+    (t) => t.selected !== false && composeTarget(t) !== t.filename,
+  );
   const skipSame = window.App.targets.length - changedItems.length;
   if (changedItems.length === 0) {
-    showRunHint(`当前文件名与目标文件名一致，无需重命名（跳过 ${skipSame} 行）`, "");
+    showRunHint(`没有需要重命名的文件（跳过 ${skipSame} 行：未勾选或目标名与当前名一致）`, "");
     return;
   }
   const items = changedItems.map((t) => ({
@@ -591,19 +607,21 @@ async function executeRename() {
 }
 
 async function undoRename() {
-  for (const t of window.App.targets) {
+  const selected = window.App.targets.filter((t) => t.selected !== false);
+  for (const t of selected) {
     rowUndo(t);
   }
   renderTargets();
-  showRunHint("已对所有文件执行一次撤销（在目标名位置显示上一个文件名）", "ok");
+  showRunHint(`已对 ${selected.length} 个勾选文件执行一次撤销（在目标名位置显示上一个文件名）`, "ok");
 }
 
 async function redoRename() {
-  for (const t of window.App.targets) {
+  const selected = window.App.targets.filter((t) => t.selected !== false);
+  for (const t of selected) {
     rowRedo(t);
   }
   renderTargets();
-  showRunHint("已对所有文件执行一次重做（在目标名位置显示下一个文件名）", "ok");
+  showRunHint(`已对 ${selected.length} 个勾选文件执行一次重做（在目标名位置显示下一个文件名）`, "ok");
 }
 
 async function refreshHistory() {
@@ -857,23 +875,19 @@ function bindEvents() {
     if (v.endsWith("。")) v = v.slice(0, -1);
     if (v !== inp.value) inp.value = v;
     t.name = v;
-    // 一旦修改文件名，checkbox 自动取消选中
-    if (t.selected !== false) {
-      t.selected = false;
-      const cb = inp.closest("tr")?.querySelector(".row-sel");
-      if (cb) cb.checked = false;
-    }
+    // 手动修改目标名：pos 之后的队列立即清空（redo 不能走旧历史）
+    rowTruncate(t);
     // 实时刷新行高亮（目标名 ≠ 当前名时淡蓝）
     const tr = inp.closest("tr");
     if (tr) tr.classList.toggle("changed", composeTarget(t) !== t.filename);
   });
-  // 失焦提交版本（行级 undo 可回溯到编辑前）
+  // 失焦仅清空末尾输入态，不入队；入队发生在 undo 或「开始重命名」时
   $("#targets-body").addEventListener("change", (e) => {
     const inp = e.target;
     if (!inp.classList.contains("target-input")) return;
     const i = Number(inp.dataset.idx);
     const t = window.App.targets[i];
-    if (Number.isInteger(i) && t) rowCommit(t);
+    if (Number.isInteger(i) && t) rowTruncate(t);
     renderTargets();
   });
   // 操作列：行内 undo/redo（在目标名位置显示上/下一个文件名）
