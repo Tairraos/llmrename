@@ -510,6 +510,10 @@ button.danger:hover:not(:disabled) {
   font-size: 12px;
   word-break: break-all;
 }
+/* 解析 / 停止按钮靠右对齐 */
+.template-bar #btn-ai-fill {
+  margin-left: auto;
+}
 /* 日志 dialog：确定大小，日志内容区固定高度、超出滚动 */
 #logs-dialog {
   width: 660px;
