@@ -147,6 +147,7 @@ fn field_example(field: &str) -> String {
         "造型" => "叉腰".into(),
         "天气" => "晴天".into(),
         "日夜" => "夜晚".into(),
+        "色调" => "暖".into(),
         // 兼容旧英文字段
         "date" => "2026-09-18".into(),
         "time" => "14-30-05".into(),

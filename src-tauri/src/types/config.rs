@@ -24,7 +24,7 @@ impl Default for ModelConfig {
     }
 }
 
-/// 重命名模板：{字段} 占位符模式，如 `{人物}_{场景}_{动作}_{日夜}`。
+/// 重命名模板：{字段} 占位符模式，如 `{人物}-{场景}-{动作}-{日夜}`。
 /// 字段名支持 Unicode 字母数字（含中文）与下划线。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TemplateConfig {
@@ -34,7 +34,7 @@ pub struct TemplateConfig {
 impl Default for TemplateConfig {
     fn default() -> Self {
         Self {
-            pattern: "{人物}_{场景}_{动作}_{日夜}".into(),
+            pattern: "{人物}-{场景}-{动作}-{日夜}".into(),
         }
     }
 }
@@ -153,7 +153,7 @@ mod tests {
     fn default_template_uses_chinese_fields() {
         assert_eq!(
             TemplateConfig::default().pattern,
-            "{人物}_{场景}_{动作}_{日夜}"
+            "{人物}-{场景}-{动作}-{日夜}"
         );
     }
 

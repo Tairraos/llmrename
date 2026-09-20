@@ -41,7 +41,7 @@ function renderTemplateFields() {
     .join("");
   $("#template-preview").textContent =
     fields.length > 0
-      ? `示例：${fields.map((f) => f.example).join("_")}.jpg（仅供提示；点「用视觉模型填充目标名」生成真实目标名）`
+      ? `示例：${renderPatternExample(pattern)}.jpg（仅供提示；点「用视觉模型填充目标名」生成真实目标名）`
       : "";
 }
 
@@ -560,6 +560,7 @@ const FIELD_EXAMPLES = {
   造型: "叉腰",
   天气: "晴天",
   日夜: "夜晚",
+  色调: "暖",
   date: "2026-09-18",
   time: "14-30-05",
   camera: "a7m4",
@@ -574,7 +575,7 @@ const FIELD_EXAMPLES = {
 const DEFAULT_EXAMPLE = "值";
 
 // 推荐的中文字段（与后端 field_example 对应，视觉模型可从图片提取）
-const RECOMMENDED_FIELDS = ["人物", "人数", "场景", "动作", "季节", "造型", "天气", "日夜"];
+const RECOMMENDED_FIELDS = ["人物", "人数", "场景", "动作", "季节", "造型", "天气", "日夜", "色调"];
 
 function renderFieldChips() {
   $("#field-chips").innerHTML = RECOMMENDED_FIELDS.map(
@@ -584,10 +585,18 @@ function renderFieldChips() {
 
 function insertFieldChip(field) {
   const inp = $("#template-pattern");
-  const prefix = inp.value.trim() ? "_" : "";
+  const prefix = inp.value.trim() ? "-" : "";
   inp.value = inp.value.trim() + prefix + `{${field}}`;
   inp.dispatchEvent(new Event("input"));
   inp.focus();
+}
+
+// 按模板实际分隔符渲染示例（字段替换为示例值）
+function renderPatternExample(pattern) {
+  return pattern.replace(/\{([^{}]+)\}/g, (_m, name) => {
+    const key = name.trim();
+    return FIELD_EXAMPLES[key] ?? DEFAULT_EXAMPLE;
+  });
 }
 
 function extractFields(pattern) {
