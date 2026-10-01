@@ -5,6 +5,10 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+# cargo 的配置文件按 CWD 向上发现，--manifest-path 不会让 src-tauri/.cargo/config.toml 生效，
+# 不显式指定时构建目录会落在 src-tauri/target（与 AGENTS.md 6.6.1 的项目根 target/ 矛盾）。
+export CARGO_TARGET_DIR="$PWD/target"
+
 echo "==> 1/4 cargo fmt --check"
 cargo fmt --check --manifest-path src-tauri/Cargo.toml
 
