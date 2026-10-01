@@ -32,6 +32,9 @@ jobs:
             gh release create "$GITHUB_REF_NAME" \
               --title "LLM Rename $GITHUB_REF_NAME" \
               --notes "安装包未签名：macOS 首次打开请右键选择「打开」；Windows 出现 SmartScreen 提示时选择「更多信息 → 仍要运行」。"
+          # 删除重推 tag 会把已发布的 release 打回草稿（草稿对匿名 API/访客不可见），
+          # 这里兜底强制发布；对已发布的 release 是无操作。
+          gh release edit "$GITHUB_REF_NAME" --draft=false
 
   publish:
     needs: guard
