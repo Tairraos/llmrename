@@ -38,6 +38,23 @@ node --check src/main.js
 
 `pnpm check` 只是 `scripts/check.sh` 的门面，CI 直接跑脚本，保证本地与 CI 一致。
 
+## CI 与发布
+
+- **Verify**（`.github/workflows/ci.yml`）：push 到 main / PR 时触发。frontend job
+  （ubuntu：node --check + vite build）+ native job（macOS：先 `pnpm build` 生成 dist/
+  再跑全套 `scripts/check.sh`）。tag 推送不跑 Verify，避免与 Release 重复编译。
+- **Release**（`.github/workflows/release.yml`）：推送 `v*` tag 触发。guard 校验
+  tag 版本与三处版本号一致并预建 Release，随后四平台 matrix（macOS aarch64/x86_64
+  用 `--target` 分开构建、Windows、ubuntu-22.04）构建并上传 7 个资产：双 dmg +
+  msi + setup.exe + deb/rpm/AppImage（无应用内更新器，故无 `.app.tar.gz`/`.sig`）。
+- **发布流程**：确认三处版本号一致（package.json / tauri.conf.json / Cargo.toml）→
+  main 上 Verify 全绿 → `git tag v<版本> && git push origin v<版本>` → 轮询
+  run 结束后到 Releases 页核对资产。排障读 check-run 注解（构建失败会把日志尾部
+  写成 `::error::` 注解，无认证可读）。
+- **重打 tag 必须先删旧 tag**（`git push origin :refs/tags/v<tag>`）：删除 tag 会把
+  已发布 Release 打回草稿（对访客不可见），guard 里的 `gh release edit --draft=false`
+  会在下一次运行时自动重新发布。
+
 ## 目录结构
 
 ```
@@ -51,6 +68,8 @@ node --check src/main.js
 │   └── external/           # 外部参考（llms.txt）
 ├── scripts/
 │   ├── check.sh            # 门禁脚本
+│   ├── release.sh          # 本地发布构建（bump 版本 → build → 留档 → 清理）
+│   ├── _bump_version.py    # 三处版本号同步 bump
 │   └── new-commit.sh       # 铁律提交辅助
 ├── src/                    # 前端：纯 HTML/CSS/JS（无框架）
 │   ├── index.html
@@ -65,7 +84,7 @@ node --check src/main.js
 │       ├── types/ config/ repo/ service/ runtime/
 │       └── tests/          # 测试
 ├── package.json            # devDependencies: @tauri-apps/cli 仅用于启动/构建
-└── .github/workflows/ci.yml
+└── .github/workflows/      # ci.yml（Verify）+ release.yml（tag → 四平台 Release）
 ```
 
 ## 写代码时的检查清单
