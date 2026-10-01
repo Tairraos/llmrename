@@ -1,44 +1,55 @@
-name: CI
-
+name: Verify
+# 推送到 main / PR 时运行：前端检查（ubuntu）+ 原生门禁（macOS）。
+# 打 tag 时不跑（tag 构建由 Release workflow 负责，避免 Rust 双重编译）。
 on:
   push:
     branches: [main]
   pull_request:
 
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  check:
+  frontend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       # 不传 version：从 package.json 的 packageManager 字段读取，避免版本不一致报错
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: "24"
           cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: 前端语法检查（与 scripts/check.sh 第 4 步一致）
+        run: |
+          for f in src/*.js; do
+            echo "    $f"
+            node --check "$f"
+          done
+      - name: vite 打包（tauri build 的 beforeBuildCommand 同款，提前暴露打包错误）
+        run: pnpm build
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+  native:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
-
-      - name: Cache Rust build
-        uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2
         with:
-          # Cargo.toml 在 src-tauri/，target-dir 由 .cargo/config.toml 指到项目根 target/
+          # Cargo.toml 在 src-tauri/，src-tauri/.cargo/config.toml 把 target-dir 指到项目根 target/。
+          # rust-cache 的 -> 后路径相对 workspace（src-tauri）解析，故写 ../target。
           workspaces: src-tauri -> ../target
-
-      - name: Install Tauri Linux dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
-
-      - name: Install frontend devDeps
-        run: pnpm install --frozen-lockfile
-
-      - name: Run gate (fmt + clippy + test + node --check)
+      - run: pnpm install --frozen-lockfile
+      - name: 生成 dist/（generate_context! 编译期读取 frontendDist，先产出真实打包结果）
+        run: pnpm build
+      - name: 全套门禁（fmt + clippy + test + node --check）
         run: ./scripts/check.sh
