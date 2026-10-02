@@ -43,7 +43,6 @@
         <div class="row template-bar">
           <span class="hint">模板：</span>
           <code id="template-summary">（未设置）</code>
-          <button id="btn-ai-fill" class="primary">解析</button>
           <span class="regex-wrap">
             <button id="btn-regex" type="button" class="secondary" title="用正则批量改名（实时预览）">正则</button>
             <div id="regex-popover" class="regex-popover" hidden>
@@ -62,6 +61,7 @@
               <span id="regex-hint" class="hint"></span>
             </div>
           </span>
+          <button id="btn-ai-fill" class="primary">解析</button>
           <button id="btn-stop-fill" class="secondary" disabled>停止</button>
         </div>
         <div class="targets-scroll">
@@ -77,9 +77,11 @@
             <tbody id="targets-body"></tbody>
           </table>
         </div>
-        <div class="actions">
+        <div class="actions status-line">
           <span id="target-summary" class="hint"></span>
           <span id="run-hint" class="hint" role="status"></span>
+        </div>
+        <div class="actions">
           <button id="btn-undo" class="secondary" disabled>
           <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h24v24H0z" fill="none" /><path fill="currentColor" d="M15 7H5.06l2.97-2.97l-1.06-1.06l-3.895 3.895a1.26 1.26 0 0 0 0 1.77L6.97 12.53l1.06-1.06L5.06 8.5H15c2.48 0 4.5 2.02 4.5 4.5s-2.02 4.5-4.5 4.5H7V19h8c3.31 0 6-2.69 6-6s-2.69-6-6-6" /></svg>
           撤销</button>
