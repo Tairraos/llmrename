@@ -404,29 +404,30 @@ button.danger:hover:not(:disabled) {
 }
 .header-actions {
   position: absolute;
-  top: 8px;
+  top: 14px;
   right: 24px;
   display: flex;
   gap: 8px;
 }
+/* 头部按钮：平时纯文字无背景，hover 才浮出小面积高亮 */
 .header-btn {
   border: none;
-  background: rgba(255, 255, 255, 0.16);
+  background: none;
   color: #fff;
-  padding: 6px 12px;
+  padding: 3px 8px;
   border-radius: 6px;
-  font-size: 13px;
+  font-size: 12px;
   cursor: pointer;
   white-space: nowrap;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
 }
 .header-actions .header-btn svg {
   flex-shrink: 0;
 }
 .header-btn:hover {
-  background: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.22);
 }
 
 /* 拖放区（小方块）+ 右侧大模型调试台 */
