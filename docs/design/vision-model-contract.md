@@ -59,11 +59,16 @@ Authorization: Bearer {api_key}
 }
 ```
 
-`content` 为一段 JSON 文本（模型可能包在 ```json 代码围栏里），解析流程：
+`content` 为一段 JSON 文本，解析流程（逐级容错，命中即停）：
 
 1. 取 `choices[0].message.content`，失败 → `JsonParse` 错误。
 2. 剥离代码围栏（```json ... ``` 或 ``` ... ```），失败按原文本继续。
-3. `serde_json::from_str::<ExtractedFieldsJson>`，失败 → `JsonParse` 错误。
+3. 依次尝试解析候选片段：整段原文，以及文本中所有「花括号配平」的片段
+   （字节级扫描、尊重字符串内的花括号与转义）——模型常在 JSON 前后附加
+   寒暄/解释文字（如 "Sure, here is the JSON object..."），剥掉后取对象本体。
+4. 每个候选先按标准 JSON 解析；失败再把字符串外的单引号换成双引号重试
+   （模型常输出 `{'人物': '一男一女'}`）。
+5. 全部失败 → `JsonParse` 错误，附 serde 错误与响应前 120 字符片段。
 
 `ExtractedFieldsJson`：模板字段名 → 字符串值 的 map，外加可选 `description` 残留处理：
 - 若模板字段未覆盖，但模型返回额外字段（如 `description`、`category`），忽略额外字段，不报错。

@@ -205,20 +205,78 @@ fn parse_content(resp: ChatResponse) -> Result<String> {
     Ok(content)
 }
 
-/// 剥离代码围栏并解析 JSON 对象；兼容模型返回单引号 JSON（非标准 JSON）。
+/// 剥离代码围栏并解析 JSON 对象；兼容模型常见的不规范输出：
+/// 包 ``` 围栏、字符串用单引号、在 JSON 前后加寒暄/解释文字
+/// （如「Sure, here is the JSON object with the extracted fields:」）。
 fn parse_json_text(content: &str) -> Result<ExtractedFieldsJson> {
-    let trimmed = content.trim();
-    let cleaned = strip_fence(trimmed);
-    serde_json::from_str(cleaned).or_else(|_| {
-        // 模型常输出 {'人物': '一男一女'}：把字符串外的单引号换成双引号再解析
-        let converted = single_quotes_to_double(cleaned);
-        serde_json::from_str(&converted).map_err(|e| {
-            AppError::vision(format!(
-                "模型返回不是合法 JSON 对象：{e}（响应片段：{}）",
-                cleaned.chars().take(120).collect::<String>()
-            ))
-        })
-    })
+    let cleaned = strip_fence(content.trim());
+    // 候选：整段原文 + 所有花括号配平的片段（寒暄/围栏外的正文原样忽略）
+    let mut candidates: Vec<&str> = vec![cleaned];
+    candidates.extend(json_object_candidates(cleaned));
+    for candidate in candidates {
+        if let Ok(v) = serde_json::from_str(candidate) {
+            return Ok(v);
+        }
+        // 模型常输出 {'人物': '一男一女'}：字符串外的单引号换成双引号再试
+        if let Ok(v) = serde_json::from_str(&single_quotes_to_double(candidate)) {
+            return Ok(v);
+        }
+    }
+    // 全部失败：对原始整段再解析一次以产出 serde 详情（错误信息可执行性）
+    let detail = serde_json::from_str::<ExtractedFieldsJson>(cleaned)
+        .err()
+        .map(|e| e.to_string())
+        .unwrap_or_default();
+    Err(AppError::vision(format!(
+        "模型返回不是合法 JSON 对象：{detail}（响应片段：{}）",
+        cleaned.chars().take(120).collect::<String>()
+    )))
+}
+
+/// 扫描文本中所有「花括号配平」的片段（尊重字符串字面量内的花括号与转义），
+/// 从左到右逐个起点尝试。字节级扫描安全：{ } " \ 均为 ASCII，
+/// 不会出现在 UTF-8 多字节序列内部。
+fn json_object_candidates(s: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    let bytes = s.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] != b'{' {
+            i += 1;
+            continue;
+        }
+        let mut depth = 0usize;
+        let mut in_string = false;
+        let mut j = i;
+        while j < bytes.len() {
+            let c = bytes[j];
+            if in_string {
+                if c == b'\\' {
+                    j += 2; // 跳过转义对（越界由外层 while 兜住）
+                    continue;
+                }
+                if c == b'"' {
+                    in_string = false;
+                }
+            } else {
+                match c {
+                    b'"' => in_string = true,
+                    b'{' => depth += 1,
+                    b'}' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            out.push(&s[i..=j]);
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            j += 1;
+        }
+        i += 1;
+    }
+    out
 }
 
 /// 把字符串外的单引号替换为双引号（保留转义与双引号字符串内的内容）。
@@ -289,6 +347,40 @@ mod tests {
         let j = parse_json_text("{'人物': '一男一女', '动作': '在太空中飞行'}").unwrap();
         assert_eq!(j.fields["人物"], "一男一女");
         assert_eq!(j.fields["动作"], "在太空中飞行");
+    }
+
+    #[test]
+    fn extracts_json_surrounded_by_prose() {
+        // 模型在 JSON 前后加寒暄/解释文字（真实故障形态）
+        let s =
+            "Sure, here is the JSON object with the extracted fields:\n\n{\"人物\": \"男孩子\"}";
+        let j = parse_json_text(s).unwrap();
+        assert_eq!(j.fields["人物"], "男孩子");
+        let s2 = "{\"a\": \"1\"}\n\nHope this helps! Let me know if you need anything else.";
+        assert_eq!(parse_json_text(s2).unwrap().fields["a"], "1");
+    }
+
+    #[test]
+    fn prose_with_braces_still_finds_real_json() {
+        // 寒暄里也含花括号：跳过非 JSON 片段，命中真正的对象
+        let s = "Use the format {key: value} like this: {\"a\": \"2\"} done";
+        assert_eq!(parse_json_text(s).unwrap().fields["a"], "2");
+    }
+
+    #[test]
+    fn braces_inside_strings_do_not_confuse_scan() {
+        // 字符串值内部的花括号/转义不破坏配平扫描
+        let s = "Sure: {\"a\": \"x}y{z\", \"b\": \"quote\\\" brace}\"} end";
+        let j = parse_json_text(s).unwrap();
+        assert_eq!(j.fields["a"], "x}y{z");
+        assert_eq!(j.fields["b"], "quote\" brace}");
+    }
+
+    #[test]
+    fn prose_plus_single_quotes_combined() {
+        // 寒暄 + 单引号 JSON 双重不规范
+        let s = "Here you go: {'人物': '一男一女'} thanks";
+        assert_eq!(parse_json_text(s).unwrap().fields["人物"], "一男一女");
     }
 
     #[test]
