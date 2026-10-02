@@ -1094,8 +1094,8 @@ async function boot() {
           consoleStatus(line, p.ok ? "c-ok" : "c-err");
           if (p.ok) window.App.fill.okPaths.add(p.path);
           // 每个文件返回就立即更新列表行，不等 invoke 整体返回
+          // （进度只进调试台与列表行，状态栏按约定不显示模型状态）
           applyItemDone(p);
-          showRunHint(`填充中 ${p.index ?? "?"}/${p.total ?? "?"}…`, "");
           break;
         }
         case "stopped":
