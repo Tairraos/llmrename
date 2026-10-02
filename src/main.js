@@ -151,14 +151,16 @@ function targetRowHtml(t, i) {
   // 正则改名预览：命中行显示替换后的名字（只读），扩展名不参与正则
   const preview = regexPreview(t, activeRegex());
   const hit = preview !== null;
-  const safeNamePart = escapeHtml(hit ? preview : t.name);
+  // 目标名与当前文件名一致时不显示目标名（空输入框），有待改名内容才显示
+  const pending = hit ? preview : t.name;
+  const unchanged = composeNameExt(pending, t.ext) === t.filename;
+  const safeNamePart = escapeHtml(unchanged ? "" : pending);
   const extLabel = t.ext
     ? `<span class="target-ext" title="扩展名不可编辑">.${escapeHtml(t.ext)}</span>`
     : "";
   // 目标名 ≠ 当前文件名：本行会在执行重命名时受影响，淡蓝底色
-  // （正则生效时按预览值判定；命中行另加淡黄底色）
-  const changed =
-    (hit ? composeNameExt(preview, t.ext) : composeTarget(t)) !== t.filename;
+  // （正则生效时按预览值判定；命中行同底色标识）
+  const changed = !unchanged;
   // 行级版本历史：有可导航的历史（>1 个版本，或目标名有未提交的编辑）才显示操作按钮
   const h = t.history;
   const edited = composeTarget(t) !== h.versions[h.pos];
@@ -563,6 +565,8 @@ function rowApplied(t, newFilename) {
   versions.push(newFilename);
   if (versions.length > ROW_HISTORY_CAP) versions = versions.slice(-ROW_HISTORY_CAP);
   t.history = { versions, pos: versions.length - 1 };
+  // 改名成功：自动取消勾选（只处理 ok 行；失败/跳过行的勾选状态不变）
+  t.selected = false;
 }
 
 function joinPath(path, filename) {
@@ -702,11 +706,13 @@ async function executeRename() {
     // 正则预览行（只读）显示的是预览值：不写回状态，预览不进历史
     if (inp.readOnly) continue;
     const i = Number(inp.dataset.idx);
-    if (Number.isInteger(i) && window.App.targets[i]) {
-      window.App.targets[i].name = inp.value.trim();
-      // 执行前：把当前目标名入队（供行级 undo 回溯）
-      rowCommit(window.App.targets[i]);
-    }
+    const t = window.App.targets[i];
+    if (!Number.isInteger(i) || !t) continue;
+    // 未改动行目标名显示为空（与当前名一致不显示）：空值不写回状态
+    if (inp.value.trim() === "" && composeTarget(t) === t.filename) continue;
+    t.name = inp.value.trim();
+    // 执行前：把当前目标名入队（供行级 undo 回溯）
+    rowCommit(t);
   }
   // 仅处理「被勾选 且 实际目标名 ≠ 当前名」的行；其余跳过。
   // 正则生效时实际目标名 = 预览值（在此刻才真正生效）
@@ -1085,10 +1091,18 @@ function bindEvents() {
     while (v.endsWith("。") || v.endsWith("啊")) v = v.slice(0, -1);
     if (v !== inp.value) inp.value = v;
     t.name = v;
+    const tr = inp.closest("tr");
+    // 手动编辑目标名：该行自动勾选（同步行内与表头复选框）
+    if (t.selected === false) {
+      t.selected = true;
+      const cb = tr?.querySelector(".row-sel");
+      if (cb) cb.checked = true;
+      const all = $("#sel-all");
+      if (all) all.checked = window.App.targets.every((x) => x.selected !== false);
+    }
     // 手动修改目标名：pos 之后的队列立即清空（redo 不能走旧历史）
     rowTruncate(t);
     // 实时刷新行高亮（目标名 ≠ 当前名时淡蓝）
-    const tr = inp.closest("tr");
     if (tr) tr.classList.toggle("changed", composeTarget(t) !== t.filename);
   });
   // 失焦仅清空末尾输入态，不入队；入队发生在 undo 或「开始重命名」时
