@@ -107,17 +107,41 @@ function composeEffective(t) {
 function toggleRegexPopover() {
   const pop = $("#regex-popover");
   if (!pop) return;
-  pop.hidden = !pop.hidden;
-  if (!pop.hidden) {
+  if (pop.hidden) {
+    pop.hidden = false;
     updateRegexHint();
     $("#regex-find").focus();
+  } else {
+    closeRegexPopover();
   }
 }
 
-// 仅关闭弹层；已预览的方案保留（查找/替换与列表预览都不动）
+// 关闭弹层：把当前正则预览值「落定」进各行输入框（可编辑、进行级历史），
+// 并清空查找/替换——正则方案在此刻被采用，重开弹层不会二次命中。
+// 已预览的改名方案不受影响（只是从「预览」变成「待执行的真实目标名」）。
 function closeRegexPopover() {
   const pop = $("#regex-popover");
-  if (pop) pop.hidden = true;
+  if (!pop || pop.hidden) return;
+  pop.hidden = true;
+  const rx = activeRegex();
+  const matched = matchedRowIndices();
+  for (const i of matched) {
+    const t = window.App.targets[i];
+    const preview = regexPreview(t, rx);
+    if (preview === null) continue;
+    t.name = preview;
+    rowCommit(t);
+  }
+  window.App.regex.find = "";
+  window.App.regex.replace = "";
+  const findInput = $("#regex-find");
+  if (findInput) findInput.value = "";
+  const replaceInput = $("#regex-replace");
+  if (replaceInput) replaceInput.value = "";
+  findCursor = -1;
+  findSig = "";
+  clearFindHighlight();
+  if (matched.length > 0) renderTargets();
 }
 
 // 正则输入：实时校验 + 整表刷新预览
@@ -1272,15 +1296,22 @@ function bindEvents() {
       }
       return;
     }
-    // 点击当前文件名：聚焦目标名输入框并全选（保持 hover 预览）
+    // 点击当前文件名：聚焦目标名输入框并全选（保持 hover 预览）。
+    // input 已被正则/用户/解析写过（有内容）→ 只聚焦全选；
+    // 只有全空时才把当前文件名写进去
     const cur = e.target.closest(".current-name");
     if (cur) {
       const inp = cur.closest("tr")?.querySelector(".target-input");
       const i = Number(inp?.dataset.idx);
       const t = Number.isInteger(i) ? window.App.targets[i] : null;
       if (inp && t) {
-        // 目标名为空（未改动的空显示）时，先把当前文件名复制进去再全选聚焦
-        if (inp.value === "" && composeTarget(t) === t.filename) inp.value = t.name;
+        if (inp.value === "") {
+          const currentName = splitNameExt(t.filename).name;
+          inp.value = currentName;
+          t.name = currentName;
+          const tr = cur.closest("tr");
+          if (tr) tr.classList.toggle("changed", composeTarget(t) !== t.filename);
+        }
         inp.focus();
         inp.select();
       }
