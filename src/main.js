@@ -542,18 +542,19 @@ function rowRedo(t) {
   t.name = name;
 }
 
-// 目标文件被真正重命名后：更新当前文件名、路径与版本链，并取消勾选
-// 队列第一个恒为当前文件名：新名置顶，旧当前名移出，其余历史去重保留
+// 目标文件被真正重命名后：更新当前文件名、路径，并把新名追加为最新版本。
+// 旧名保留在版本链中（末尾恒为当前文件名）：
+// 行级/批量撤销可回到改名前的名字（再次执行重命名即可改回），重做可回到新名；
+// 勾选状态保持不变——批量撤销作用于勾选行，改名后必须仍可批量撤销。
 function rowApplied(t, newFilename) {
-  const oldFilename = t.filename;
   t.filename = newFilename;
   t.path = joinPath(t.path, newFilename);
   t.ext = splitNameExt(newFilename).ext;
   t.name = splitNameExt(newFilename).name;
-  const rest = t.history.versions.filter((v) => v !== oldFilename && v !== newFilename);
-  t.history = { versions: [newFilename, ...rest].slice(0, ROW_HISTORY_CAP), pos: 0 };
-  // 真正被 rename 的文件自动取消勾选
-  t.selected = false;
+  const versions = t.history.versions.filter((v) => v !== newFilename);
+  versions.push(newFilename);
+  if (versions.length > ROW_HISTORY_CAP) versions = versions.slice(-ROW_HISTORY_CAP);
+  t.history = { versions, pos: versions.length - 1 };
 }
 
 function joinPath(path, filename) {
