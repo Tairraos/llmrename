@@ -1230,6 +1230,7 @@ function bindEvents() {
     if (!t) return;
     const src = fileSrc(t.path);
     if (!src) return;
+    previewImg.dataset.path = t.path; // 预览失败时用于定位被标记的行
     previewImg.src = src;
     preview.hidden = false;
   });
@@ -1248,10 +1249,44 @@ function bindEvents() {
   $("#targets-body").addEventListener("mouseout", (e) => {
     if (e.target.closest(".current-name")) preview.hidden = true;
   });
-  // 图片加载失败（文件被移动/非图片）时隐藏弹层
-  previewImg.addEventListener("error", () => {
+  // 图片加载失败：隐藏弹层；经后端确认文件确实不存在（非图片文件也会
+  // 触发 img error，不能只凭加载失败判断）→ 标记该行已删除并取消勾选
+  previewImg.addEventListener("error", async () => {
     preview.hidden = true;
+    const path = previewImg.dataset.path;
+    if (!path || !hasTauri()) return;
+    const i = window.App.targets.findIndex(
+      (t) => normalizePath(t.path) === normalizePath(path),
+    );
+    if (i < 0 || window.App.targets[i].deleted) return;
+    try {
+      if (await invoke("path_exists", { path })) return;
+      markRowDeleted(i);
+    } catch {
+      // 非 Tauri 环境忽略
+    }
   });
+
+  // hover 发现文件已被删除：当前文件名加删除线、自动取消勾选
+  function markRowDeleted(i) {
+    const t = window.App.targets[i];
+    if (!t || t.deleted) return;
+    t.deleted = true;
+    t.selected = false;
+    const tr = document.querySelector(`#targets-body tr[data-idx="${i}"]`);
+    if (tr) {
+      const cell = tr.querySelector(".current-name");
+      if (cell) {
+        cell.classList.add("deleted");
+        cell.title += "\n（文件已不存在，已被删除）";
+      }
+      const cb = tr.querySelector(".row-sel");
+      if (cb) cb.checked = false;
+    }
+    const all = $("#sel-all");
+    if (all) all.checked = window.App.targets.every((x) => x.selected !== false);
+    updateGlobalUndoRedo();
+  }
 
   // 目标名编辑（仅文件名部分；扩展名固定不可编辑）
   $("#targets-body").addEventListener("input", (e) => {

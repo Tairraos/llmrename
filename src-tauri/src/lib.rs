@@ -30,6 +30,7 @@ pub fn run() {
             runtime::commands::list_logs,
             runtime::commands::open_log_dir,
             runtime::commands::reveal_in_finder,
+            runtime::commands::path_exists,
             runtime::commands::pick_dir,
             runtime::commands::pick_files,
         ])

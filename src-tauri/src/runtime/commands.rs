@@ -415,6 +415,12 @@ pub async fn reveal_in_finder(path: String) -> Result<()> {
     }
 }
 
+/// 检查文件是否存在（前端 hover 预览加载失败时确认文件是否真被删除）。
+#[tauri::command]
+pub fn path_exists(path: String) -> bool {
+    PathBuf::from(&path).exists()
+}
+
 /// 原生目录选择对话框。返回选中的目录绝对路径；取消时返回 None。
 #[tauri::command]
 pub async fn pick_dir() -> Result<Option<String>> {
