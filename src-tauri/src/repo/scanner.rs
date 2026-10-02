@@ -37,7 +37,8 @@ pub fn scan(dir: &Path, extensions: &[String]) -> Result<Vec<AssetEntry>> {
         };
         entries.push(AssetEntry {
             path: ent.path().to_string_lossy().into_owned(),
-            filename: name,
+            filename: name.clone(),
+            relative_path: name,
             size_bytes: meta.len(),
             modified_secs: meta
                 .modified()

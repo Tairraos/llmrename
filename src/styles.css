@@ -327,6 +327,10 @@ button.danger:hover:not(:disabled) {
   width: 28px;
   text-align: center;
 }
+/* 表头「当前文件名」可点击排序 */
+.assets-table th.current-name-col {
+  cursor: pointer;
+}
 .assets-table .row-sel,
 .assets-table #sel-all {
   /* 自绘复选框：原生 checkbox 在 WKWebView 下有「灰色未激活/悬停后变蓝」

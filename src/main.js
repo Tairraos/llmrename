@@ -13,6 +13,8 @@ let lastRowCheckedIdx = null;
 // 正则「查找」当前定位（游标 + 上次查找的特征串，模式变了就重头找）
 let findCursor = -1;
 let findSig = "";
+// 表头「当前文件名」排序方向（null=未排序）
+let nameSortDir = null;
 
 window.App = {
   config: null, // ModelConfig + TemplateConfig + RenameOptions
@@ -279,7 +281,7 @@ function targetRowHtml(t, i) {
         <td class="sel-cell">
           <input type="checkbox" class="row-sel" data-idx="${i}" ${selected ? "checked" : ""} title="选中后才会被大模型解析" />
         </td>
-        <td class="current-name" title="${escapeHtml(t.filename)}">${curName}</td>
+        <td class="current-name" title="${escapeHtml(t.filename)}${t.relDir ? `&#10;${escapeHtml(t.relDir + t.filename)}` : ""}">${curName}</td>
         <td class="target-cell">
           <input
             class="target-input"
@@ -585,11 +587,24 @@ function mergeTargets(entries) {
     if (existing.has(e.path)) continue;
     existing.add(e.path);
     const { name, ext } = splitNameExt(e.filename);
+    // 相对拖入根目录的目录部分（hover title 显示相对路径用）
+    const rel = e.relative_path || e.filename;
+    const relDir = rel.endsWith(e.filename)
+      ? rel.slice(0, rel.length - e.filename.length)
+      : "";
     // 默认目标名 = 原文件名（不含扩展名；扩展名固定不可编辑）
     // history：行级版本历史（目标名位置的回溯导航），versions[0] 为最早、末尾为最新；
     // pos 指向目标名当前展示的版本。
     const history = { versions: [e.filename], pos: 0 };
-    window.App.targets.push({ path: e.path, filename: e.filename, name, ext, history, selected: true });
+    window.App.targets.push({
+      path: e.path,
+      filename: e.filename,
+      relDir,
+      name,
+      ext,
+      history,
+      selected: true,
+    });
   }
   renderTargets();
 }
@@ -1342,6 +1357,30 @@ function bindEvents() {
   if (selAll) {
     selAll.addEventListener("change", () => {
       for (const t of window.App.targets) t.selected = selAll.checked;
+      renderTargets();
+    });
+  }
+
+  // 表头「当前文件名」：按当前文件名自然排序（正序/倒序切换）。
+  // 排序移动整行对象，checkbox 勾选与未执行的目标名随行走
+  const nameCol = document.querySelector("th.current-name-col");
+  if (nameCol) {
+    nameCol.addEventListener("click", () => {
+      nameSortDir = nameSortDir === "asc" ? "desc" : "asc";
+      const dir = nameSortDir === "asc" ? 1 : -1;
+      window.App.targets.sort(
+        (a, b) =>
+          dir *
+          String(a.filename).localeCompare(String(b.filename), undefined, {
+            numeric: true,
+            sensitivity: "base",
+          }),
+      );
+      // 行序变了：shift 锚点失效，查找从头开始
+      lastRowCheckedIdx = null;
+      findCursor = -1;
+      clearFindHighlight();
+      nameCol.textContent = "当前文件名" + (nameSortDir === "asc" ? " ▲" : " ▼");
       renderTargets();
     });
   }

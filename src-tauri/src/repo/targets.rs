@@ -19,10 +19,16 @@ pub fn collect_targets(
     let mut seen = std::collections::HashSet::new();
     for p in paths {
         let path = Path::new(p);
+        // 相对路径的基准：目录用它自身，单文件用其父目录
+        let root = if path.is_dir() {
+            path.to_path_buf()
+        } else {
+            path.parent().unwrap_or(path).to_path_buf()
+        };
         if path.is_dir() {
-            collect_dir(path, extensions, max_depth, 0, &mut seen, &mut out)?;
+            collect_dir(&root, path, extensions, max_depth, 0, &mut seen, &mut out)?;
         } else if path.is_file() {
-            push_entry(path, &mut seen, &mut out);
+            push_entry(&root, path, &mut seen, &mut out);
         } else {
             return Err(AppError::invalid(format!(
                 "路径不存在：{p}（请检查文件或文件夹）"
@@ -34,6 +40,7 @@ pub fn collect_targets(
 }
 
 fn collect_dir(
+    root: &Path,
     dir: &Path,
     extensions: &[String],
     max_depth: usize,
@@ -64,19 +71,20 @@ fn collect_dir(
         } else if ft.is_file() {
             let name = ent.file_name().to_string_lossy().into_owned();
             if extensions.is_empty() || has_ext(&name, extensions) {
-                push_entry(&ent.path(), seen, out);
+                push_entry(root, &ent.path(), seen, out);
             }
         }
     }
     // 子目录按名称稳定排序后递归
     subdirs.sort();
     for sub in subdirs {
-        collect_dir(&sub, extensions, max_depth, depth + 1, seen, out)?;
+        collect_dir(root, &sub, extensions, max_depth, depth + 1, seen, out)?;
     }
     Ok(())
 }
 
 fn push_entry(
+    root: &Path,
     path: &Path,
     seen: &mut std::collections::HashSet<String>,
     out: &mut Vec<AssetEntry>,
@@ -89,12 +97,17 @@ fn push_entry(
         Ok(m) => m,
         Err(_) => return,
     };
+    let relative_path = path
+        .strip_prefix(root)
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_else(|_| path.to_string_lossy().into_owned());
     out.push(AssetEntry {
         path: key,
         filename: path
             .file_name()
             .map(|f| f.to_string_lossy().into_owned())
             .unwrap_or_default(),
+        relative_path,
         size_bytes: meta.len(),
         modified_secs: meta
             .modified()
@@ -159,4 +172,44 @@ fn digit_block(s: &str, pos: usize) -> (u64, usize) {
         trimmed.parse().unwrap_or(u64::MAX)
     };
     (value, end - pos)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn collect_targets_sets_relative_paths() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("assets");
+        std::fs::create_dir_all(root.join("sub/deep")).unwrap();
+        std::fs::write(root.join("b.jpg"), "x").unwrap();
+        std::fs::write(root.join("sub/a.jpg"), "x").unwrap();
+        std::fs::write(root.join("sub/deep/c.png"), "x").unwrap();
+
+        let entries = collect_targets(
+            &[root.to_string_lossy().into_owned()],
+            &["jpg".into(), "png".into()],
+            8,
+        )
+        .unwrap();
+
+        let rel: Vec<String> = entries.iter().map(|e| e.relative_path.clone()).collect();
+        // 按文件名自然排序：a.jpg < b.jpg < c.png
+        assert_eq!(
+            rel,
+            vec!["sub/a.jpg", "b.jpg", "sub/deep/c.png"]
+                .into_iter()
+                .map(String::from)
+                .collect::<Vec<_>>()
+        );
+        // 直接拖入单个文件：相对路径即文件名
+        let entries = collect_targets(
+            &[root.join("sub/a.jpg").to_string_lossy().into_owned()],
+            &[],
+            8,
+        )
+        .unwrap();
+        assert_eq!(entries[0].relative_path, "a.jpg");
+    }
 }

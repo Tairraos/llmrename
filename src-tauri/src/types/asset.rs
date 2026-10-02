@@ -7,6 +7,8 @@ pub struct AssetEntry {
     pub path: String,
     /// 文件名（含扩展名）
     pub filename: String,
+    /// 相对路径（相对拖入/扫描的根目录；直接拖入的单文件即文件名）
+    pub relative_path: String,
     /// 大小（字节）
     pub size_bytes: u64,
     /// 修改时间（Unix 秒）
