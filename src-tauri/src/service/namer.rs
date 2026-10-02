@@ -97,9 +97,21 @@ fn explicit_target(from: &Path, target: &str, options: &RenameOptions) -> Result
         return Err(AppError::invalid("目标名与原文件名相同（跳过）"));
     }
     if to.exists() {
+        // 同名冲突：自动在新名后追加顺序数字（macOS 风格「名称 2.ext」），
+        // 从 1 起找第一个未占用的；批内先改名的文件也会被后续项看到
+        let (base, ext) = match target.rsplit_once('.') {
+            Some((b, e)) if !b.is_empty() => (b.to_string(), format!(".{e}")),
+            _ => (target.to_string(), String::new()),
+        };
+        for n in 1..=999 {
+            let candidate = parent.join(format!("{base} {n}{ext}"));
+            if !candidate.exists() {
+                return Ok(candidate);
+            }
+        }
         return Err(AppError::fs(format!(
-            "目标文件已存在：{}（跳过，请改目标名）",
-            to.display()
+            "目标名冲突且「{} 1–999」序号均被占用（跳过，请改目标名）",
+            base
         )));
     }
     Ok(to)
@@ -188,5 +200,51 @@ mod tests {
         let mut g = HashMap::new();
         g.insert("人物".to_string(), "woman".to_string());
         assert_eq!(preview_name("{人物}_{场景}", &g), "woman_?");
+    }
+
+    #[test]
+    fn rename_collision_gets_numeric_suffix() {
+        let dir = tempfile::tempdir().unwrap();
+        let from = dir.path().join("a.txt");
+        std::fs::write(&from, "A").unwrap();
+        std::fs::write(dir.path().join("b.txt"), "B").unwrap();
+        let items = vec![crate::types::RenameItem {
+            path: from.to_string_lossy().into_owned(),
+            target: "b.txt".into(),
+        }];
+        let options = RenameOptions {
+            allowed_suffixes: vec![],
+            ..Default::default()
+        };
+        let outs = rename_explicit(&items, &options);
+        assert_eq!(outs[0].status, "ok", "{:?}", outs[0]);
+        assert_eq!(outs[0].to.file_name().unwrap(), "b 1.txt");
+        assert!(outs[0].to.exists());
+        assert!(!from.exists(), "原文件应已被改名");
+    }
+
+    #[test]
+    fn batch_duplicates_get_sequential_suffixes() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut items = Vec::new();
+        for name in ["a.txt", "b.txt", "c.txt"] {
+            let p = dir.path().join(name);
+            std::fs::write(&p, "x").unwrap();
+            items.push(crate::types::RenameItem {
+                path: p.to_string_lossy().into_owned(),
+                target: "same.txt".into(),
+            });
+        }
+        let options = RenameOptions {
+            allowed_suffixes: vec![],
+            ..Default::default()
+        };
+        let outs = rename_explicit(&items, &options);
+        let names: Vec<String> = outs
+            .iter()
+            .map(|o| o.to.file_name().unwrap().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(names, vec!["same.txt", "same 1.txt", "same 2.txt"]);
+        assert!(outs.iter().all(|o| o.status == "ok"), "{:?}", outs);
     }
 }
