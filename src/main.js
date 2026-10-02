@@ -10,6 +10,9 @@ const $ = (sel) => document.querySelector(sel);
 
 // 行 checkbox 上次点击的行号（shift 范围勾选的起点）
 let lastRowCheckedIdx = null;
+// 正则「查找」当前定位（游标 + 上次查找的特征串，模式变了就重头找）
+let findCursor = -1;
+let findSig = "";
 
 window.App = {
   config: null, // ModelConfig + TemplateConfig + RenameOptions
@@ -121,6 +124,10 @@ function closeRegexPopover() {
 function onRegexInput() {
   window.App.regex.find = $("#regex-find").value;
   window.App.regex.replace = $("#regex-replace").value;
+  // 模式变了：查找游标重置、旧的高亮失效
+  findCursor = -1;
+  findSig = "";
+  clearFindHighlight();
   updateRegexHint();
   renderTargets();
 }
@@ -145,6 +152,77 @@ function updateRegexHint() {
   const hits = window.App.targets.filter((t) => regexPreview(t, rx) !== null).length;
   hint.textContent = hits > 0 ? `命中 ${hits} 行，扩展名不参与替换` : "没有行被命中";
   hint.className = "hint";
+}
+
+/* ---------------- 正则查找定位 / 批量选中命中行 ---------------- */
+
+// 当前正则命中的行号（按列表顺序）
+function matchedRowIndices() {
+  const rx = activeRegex();
+  if (!rx) return [];
+  return window.App.targets
+    .map((t, i) => (regexPreview(t, rx) !== null ? i : -1))
+    .filter((i) => i >= 0);
+}
+
+function clearFindHighlight() {
+  const el = document.querySelector("#targets-body tr.regex-find-hit");
+  if (el) el.classList.remove("regex-find-hit");
+}
+
+// 「查找」：滚到下一条命中并醒目标记；每点一次继续下一个，到末尾循环
+function onRegexFind() {
+  const hint = $("#regex-hint");
+  const matched = matchedRowIndices();
+  if (matched.length === 0) {
+    clearFindHighlight();
+    if (hint) {
+      hint.textContent = "没有行被命中";
+      hint.className = "hint err";
+    }
+    return;
+  }
+  const sig = window.App.regex.find + "\u0000" + window.App.regex.replace;
+  if (sig !== findSig) {
+    findCursor = -1;
+    findSig = sig;
+  }
+  findCursor = (findCursor + 1) % matched.length;
+  clearFindHighlight();
+  const tr = document.querySelector(`#targets-body tr[data-idx="${matched[findCursor]}"]`);
+  if (tr) {
+    tr.classList.add("regex-find-hit");
+    tr.scrollIntoView({ block: "center" });
+  }
+  if (hint) {
+    hint.textContent = `第 ${findCursor + 1}/${matched.length} 个命中`;
+    hint.className = "hint";
+  }
+}
+
+// 「选中」：把所有命中行的复选框打上勾
+function onRegexSelect() {
+  const hint = $("#regex-hint");
+  const matched = matchedRowIndices();
+  if (matched.length === 0) {
+    if (hint) {
+      hint.textContent = "没有行被命中";
+      hint.className = "hint err";
+    }
+    return;
+  }
+  for (const i of matched) {
+    window.App.targets[i].selected = true;
+    const rcb = document.querySelector(`#targets-body tr[data-idx="${i}"] .row-sel`);
+    if (rcb) rcb.checked = true;
+  }
+  lastRowCheckedIdx = matched[matched.length - 1];
+  const all = $("#sel-all");
+  if (all) all.checked = window.App.targets.every((x) => x.selected !== false);
+  if (hint) {
+    hint.textContent = `已勾选 ${matched.length} 行命中项`;
+    hint.className = "hint";
+  }
 }
 
 // 单行表格 HTML（renderTargets 与 item-done 就地更新共用同一模板）
@@ -1030,6 +1108,16 @@ function bindEvents() {
   $("#btn-regex-close").addEventListener("click", closeRegexPopover);
   $("#regex-find").addEventListener("input", onRegexInput);
   $("#regex-replace").addEventListener("input", onRegexInput);
+  $("#btn-regex-find").addEventListener("click", onRegexFind);
+  $("#btn-regex-select").addEventListener("click", onRegexSelect);
+  // 点「查找」以外任意位置：取消当前命中行的醒目标记
+  document.addEventListener(
+    "click",
+    (e) => {
+      if (!e.target.closest("#btn-regex-find")) clearFindHighlight();
+    },
+    true,
+  );
   $("#btn-stop-fill").addEventListener("click", () => {
     // 停止/继续时同样收起
     closeRegexPopover();

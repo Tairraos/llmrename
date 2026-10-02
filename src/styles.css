@@ -272,6 +272,14 @@ button.danger:hover:not(:disabled) {
 .assets-table tbody tr.regex-hit:hover {
   background: #dcebff;
 }
+/* 正则「查找」定位的当前命中行：暖色底 + 描边，醒目于普通命中行；
+   点击「查找」以外任意位置即移除该标记 */
+.assets-table tbody tr.regex-find-hit,
+.assets-table tbody tr.regex-find-hit:hover {
+  background: #fef3c7;
+  outline: 2px solid var(--warn);
+  outline-offset: -2px;
+}
 /* 正则预览行的输入框只读：显示预览值，禁止编辑 */
 .assets-table .target-input[readonly] {
   cursor: default;
@@ -739,6 +747,13 @@ button#btn-regex:hover:not(:disabled) {
   gap: 8px;
   font-size: 12px;
   color: var(--muted);
+}
+/* 弹层底部操作行：查找 / 选中 靠右 */
+.regex-pop-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 2px;
 }
 .regex-close {
   border: none;
