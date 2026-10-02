@@ -58,35 +58,26 @@ function composeTarget(t) {
   return t.ext ? `${name}.${t.ext}` : name;
 }
 
-function renderTargets() {
-  const body = $("#targets-body");
-  const targets = window.App.targets;
-  if (targets.length === 0) {
-    body.innerHTML =
-      '<tr><td colspan="4"><span class="empty-note">尚未添加文件——拖入图片/文件夹，或点下面按钮选择</span></td></tr>';
-    $("#target-summary").textContent = "";
-    return;
-  }
-  body.innerHTML = targets
-    .map((t, i) => {
-      // 当前文件名列：与目标列一致不显示扩展名（title 保留完整文件名）
-      const curName = escapeHtml(splitNameExt(t.filename).name);
-      const safeNamePart = escapeHtml(t.name);
-      const extLabel = t.ext
-        ? `<span class="target-ext" title="扩展名不可编辑">.${escapeHtml(t.ext)}</span>`
-        : "";
-      // 目标名 ≠ 当前文件名：本行会在执行重命名时受影响，淡蓝底色
-      const changed = composeTarget(t) !== t.filename;
-      // 行级版本历史：有可导航的历史（>1 个版本，或目标名有未提交的编辑）才显示操作按钮
-      const h = t.history;
-      const edited = composeTarget(t) !== h.versions[h.pos];
-      const showOps = h.versions.length > 1 || edited;
-      // undo：可回上一版本，或被手动改过（回到当前版本）
-      const undoDisabled = !(h.pos > 0 || edited);
-      // redo：仅在目标名未被手动改动且有下一版本时可用
-      const redoDisabled = !(!edited && h.pos < h.versions.length - 1);
-      const selected = t.selected !== false;
-      return `<tr class="${changed ? "changed" : ""}" data-idx="${i}">
+// 单行表格 HTML（renderTargets 与 item-done 就地更新共用同一模板）
+function targetRowHtml(t, i) {
+  // 当前文件名列：与目标列一致不显示扩展名（title 保留完整文件名）
+  const curName = escapeHtml(splitNameExt(t.filename).name);
+  const safeNamePart = escapeHtml(t.name);
+  const extLabel = t.ext
+    ? `<span class="target-ext" title="扩展名不可编辑">.${escapeHtml(t.ext)}</span>`
+    : "";
+  // 目标名 ≠ 当前文件名：本行会在执行重命名时受影响，淡蓝底色
+  const changed = composeTarget(t) !== t.filename;
+  // 行级版本历史：有可导航的历史（>1 个版本，或目标名有未提交的编辑）才显示操作按钮
+  const h = t.history;
+  const edited = composeTarget(t) !== h.versions[h.pos];
+  const showOps = h.versions.length > 1 || edited;
+  // undo：可回上一版本，或被手动改过（回到当前版本）
+  const undoDisabled = !(h.pos > 0 || edited);
+  // redo：仅在目标名未被手动改动且有下一版本时可用
+  const redoDisabled = !(!edited && h.pos < h.versions.length - 1);
+  const selected = t.selected !== false;
+  return `<tr class="${changed ? "changed" : ""}" data-idx="${i}">
         <td class="sel-cell">
           <input type="checkbox" class="row-sel" data-idx="${i}" ${selected ? "checked" : ""} title="选中后才会被大模型解析" />
         </td>
@@ -109,8 +100,18 @@ function renderTargets() {
             : ""
         }</td>
       </tr>`;
-    })
-    .join("");
+}
+
+function renderTargets() {
+  const body = $("#targets-body");
+  const targets = window.App.targets;
+  if (targets.length === 0) {
+    body.innerHTML =
+      '<tr><td colspan="4"><span class="empty-note">尚未添加文件——拖入图片/文件夹，或点下面按钮选择</span></td></tr>';
+    $("#target-summary").textContent = "";
+    return;
+  }
+  body.innerHTML = targets.map((t, i) => targetRowHtml(t, i)).join("");
   $("#target-summary").textContent = `共 ${targets.length} 个文件`;
   // 表头全选框状态跟随行选中
   const selAll = $("#sel-all");
@@ -132,6 +133,39 @@ function updateGlobalUndoRedo() {
   );
   $("#btn-undo").disabled = !anyUndo;
   $("#btn-redo").disabled = !anyRedo;
+}
+
+/* ---------------- 大模型逐个返回时的增量刷新 ---------------- */
+
+// 单个文件解析完成：立即把模型结果写进对应行（不等全部完成）。
+// 后端每完成一个文件就推一条 vision-status(item-done)，此处按路径定位行。
+function applyItemDone(p) {
+  if (!p.ok || !p.target) return; // 失败行维持原目标名，列表不动
+  const pathKey = normalizePath(p.path);
+  const i = window.App.targets.findIndex((t) => normalizePath(t.path) === pathKey);
+  if (i < 0) return;
+  const t = window.App.targets[i];
+  // 模型返回完整文件名（已按原扩展名拼接），拆回 name + ext
+  const { name } = splitNameExt(p.target);
+  t.name = name;
+  // 填充结果作为新版本提交（行级 undo 可回溯到填充前）
+  rowCommit(t);
+  updateTargetRowDom(i);
+}
+
+// 就地刷新一行 DOM，不整表重渲染：避免打断用户正在编辑的其他行（焦点丢失）。
+// 用户正编辑着这一行时暂不动 DOM——失焦的 change 事件会触发整表刷新同步。
+function updateTargetRowDom(i) {
+  const t = window.App.targets[i];
+  const tr = document.querySelector(`#targets-body tr[data-idx="${i}"]`);
+  if (!t || !tr) {
+    renderTargets();
+    return;
+  }
+  const active = document.activeElement;
+  if (active && active.classList?.contains("target-input") && tr.contains(active)) return;
+  tr.outerHTML = targetRowHtml(t, i);
+  updateGlobalUndoRedo();
 }
 
 function renderLogs() {
@@ -1015,6 +1049,9 @@ async function boot() {
           const line = `[${p.index ?? "?"}/${p.total ?? "?"}] ${p.filename ?? "?"} ${p.ok ? "✓ 已填充" : "✗ 失败"}${p.target ? ` → ${p.target}` : ""}`;
           consoleStatus(line, p.ok ? "c-ok" : "c-err");
           if (p.ok) window.App.fill.okPaths.add(p.path);
+          // 每个文件返回就立即更新列表行，不等 invoke 整体返回
+          applyItemDone(p);
+          showRunHint(`填充中 ${p.index ?? "?"}/${p.total ?? "?"}…`, "");
           break;
         }
         case "stopped":
