@@ -2,8 +2,9 @@
 # 发布构建：bump 版本 → build（默认只 .app）→ 可选 dmg → 清理打包产物（保留编译缓存）。
 #
 # 用法:
-#   ./scripts/release.sh           # 默认：只构建 .app（debug 校验用）
-#   ./scripts/release.sh --dmg     # 构建 .app + .dmg
+#   ./scripts/release.sh              # 默认：只构建 .app，patch 版本 +1
+#   ./scripts/release.sh 1.0.0        # 显式指定版本号（大版本发布）
+#   ./scripts/release.sh --dmg        # 构建 .app + .dmg
 #
 # 行为（对应 AGENTS.md 铁律 6.6「构建与发布」）:
 #   - 每次 build 自动 bump patch 版本（同步 tauri.conf.json / Cargo.toml / package.json）
@@ -18,15 +19,20 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 DMG=0
+VER_ARG=""
 for arg in "$@"; do
-  case "$arg" in
-    --dmg) DMG=1 ;;
-    *) echo "未知参数: $arg（仅支持 --dmg）" >&2; exit 1 ;;
-  esac
+  if [ "$arg" = "--dmg" ]; then
+    DMG=1
+  elif [[ "$arg" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    VER_ARG="$arg"
+  else
+    echo "未知参数: $arg（仅支持 --dmg 或 X.Y.Z 版本号）" >&2
+    exit 1
+  fi
 done
 
-# 1) bump 版本
-NEW_VER="$(python3 scripts/_bump_version.py)"
+# 1) bump 版本（可显式指定）
+NEW_VER="$(python3 scripts/_bump_version.py ${VER_ARG})"
 echo "==> 新版本: $NEW_VER"
 
 # 2) 构建（tauri build 以 bundle 配置为准，通过环境变量覆盖 targets）
