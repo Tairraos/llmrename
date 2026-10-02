@@ -19,3 +19,6 @@ Thumbs.db
 # 本地环境（密钥等，禁止入库）
 .env
 .env.*
+
+# 用户私人会话记录（不 push 到远程）
+prompr-history.txt
