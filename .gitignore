@@ -1,10 +1,9 @@
 # 依赖
 node_modules/
 
-# 构建产物（不入库）
+# 构建产物（不入库；交付物只保留 target/ 一份，无 release/ 留档目录）
 dist/
 target/
-release/
 *.log
 
 # 系统文件
