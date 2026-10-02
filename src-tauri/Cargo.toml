@@ -1,6 +1,6 @@
 [package]
 name = "llmrename"
-version = "1.0.9"
+version = "1.0.11"
 description = "Visual-model-driven batch image renamer"
 edition = "2021"
 rust-version = "1.77"
