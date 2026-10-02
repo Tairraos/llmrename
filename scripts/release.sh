@@ -63,4 +63,4 @@ rm -rf "target/release/bundle"
 # 防止旧工具链再写入迁移前的历史遗留目录
 rm -rf src-tauri/target
 
-echo "✅ 构建完成，产物：target/$APP_OUT（版本 ${NEW_VER}）"
+echo "✅ 构建完成，产物：target/${APP_OUT}（版本 ${NEW_VER}）"
