@@ -1001,12 +1001,18 @@ function bindEvents() {
     const chip = e.target.closest(".chip");
     if (chip) insertFieldChip(chip.dataset.field);
   });
-  $("#btn-ai-fill").addEventListener("click", () => aiFillTargets(false));
+  $("#btn-ai-fill").addEventListener("click", () => {
+    // 解析时收起正则弹层（已预览的方案保留，只是不挡住调试台）
+    closeRegexPopover();
+    aiFillTargets(false);
+  });
   $("#btn-regex").addEventListener("click", toggleRegexPopover);
   $("#btn-regex-close").addEventListener("click", closeRegexPopover);
   $("#regex-find").addEventListener("input", onRegexInput);
   $("#regex-replace").addEventListener("input", onRegexInput);
   $("#btn-stop-fill").addEventListener("click", () => {
+    // 停止/继续时同样收起
+    closeRegexPopover();
     const f = window.App.fill;
     if (f.running && !f.stopRequested) {
       f.stopRequested = true;
