@@ -35,6 +35,17 @@ body {
   color: var(--text);
   font-size: 14px;
   line-height: 1.5;
+  /* 全局禁止文字选择（含 shift+点击复选框时的拖选）；
+     仅输入框与大模型调试台（#console-view）可选中复制 */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+input,
+textarea,
+#console-view {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 /* 顶部 */
