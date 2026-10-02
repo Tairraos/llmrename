@@ -1461,6 +1461,40 @@ function bindEvents() {
   $("#btn-open-log").addEventListener("click", openLogDir);
 }
 
+/* ---------------- 文本选择策略（JS 捕获层兜底） ---------------- */
+// CSS user-select:none 在 WKWebView 下拦不住所有途径（右键仍会选中
+// 单词并弹系统菜单、拖选仍可能发生），这里在捕获层硬拦截：
+// 仅输入框、textarea 与大模型调试台允许选择文字 / 弹系统菜单。
+function selectionAllowed(t) {
+  return !!(t && t.closest && t.closest("input, textarea, #console-view"));
+}
+for (const ev of ["selectstart", "dragstart"]) {
+  document.addEventListener(
+    ev,
+    (e) => {
+      if (!selectionAllowed(e.target)) e.preventDefault();
+    },
+    true,
+  );
+}
+document.addEventListener(
+  "contextmenu",
+  (e) => {
+    if (!selectionAllowed(e.target)) e.preventDefault();
+  },
+  true,
+);
+// 在禁选区域按下鼠标：顺手清掉可能残留的选区（有选区时右键会弹系统菜单）
+document.addEventListener(
+  "mousedown",
+  (e) => {
+    if (selectionAllowed(e.target)) return;
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) sel.removeAllRanges();
+  },
+  true,
+);
+
 /* ---------------- 启动 ---------------- */
 
 async function boot() {

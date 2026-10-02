@@ -26,6 +26,14 @@ body {
   overflow: hidden;
 }
 
+/* 全局禁止文字选择（含 shift+点击复选框时的拖选）；
+   仅输入框与大模型调试台（#console-view）可选中复制。
+   html/body 双保险：WKWebView 下继承不总生效，另有 JS 捕获层兜底 */
+html {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 body {
   margin: 0;
   display: flex;
