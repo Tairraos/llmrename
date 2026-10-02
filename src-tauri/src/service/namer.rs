@@ -33,6 +33,15 @@ pub fn rename_explicit(
         .iter()
         .map(|it| {
             let from = PathBuf::from(&it.path);
+            // 源文件已不存在（用户可能已删除）：放弃改名，单独标记 missing
+            if !from.exists() {
+                return RenameOutcome {
+                    from,
+                    to: PathBuf::new(),
+                    status: "missing".into(),
+                    error: Some("文件已不存在（可能已被删除），放弃改名".into()),
+                };
+            }
             let to = match explicit_target(&from, &it.target, options) {
                 Ok(t) => t,
                 Err(e) => {
@@ -221,6 +230,23 @@ mod tests {
         assert_eq!(outs[0].to.file_name().unwrap(), "b 1.txt");
         assert!(outs[0].to.exists());
         assert!(!from.exists(), "原文件应已被改名");
+    }
+
+    #[test]
+    fn rename_missing_source_is_reported_not_failed() {
+        let dir = tempfile::tempdir().unwrap();
+        let ghost = dir.path().join("ghost.jpg");
+        let items = vec![crate::types::RenameItem {
+            path: ghost.to_string_lossy().into_owned(),
+            target: "b.jpg".into(),
+        }];
+        let options = RenameOptions {
+            allowed_suffixes: vec![],
+            ..Default::default()
+        };
+        let outs = rename_explicit(&items, &options);
+        assert_eq!(outs[0].status, "missing");
+        assert!(outs[0].error.as_deref().unwrap().contains("已不存在"));
     }
 
     #[test]

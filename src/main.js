@@ -288,12 +288,20 @@ function targetRowHtml(t, i) {
   const undoDisabled = !(h.pos > 0 || edited);
   // redo：仅在目标名未被手动改动且有下一版本时可用
   const redoDisabled = !(!edited && h.pos < h.versions.length - 1);
+  // hover tips：显示点击后会变成的文件名；按钮禁用（灰）时不给 tips
+  // 编辑态点 undo：先提交当前编辑再回退一格 → 显示的是指针当前的版本
+  const undoTarget = edited ? h.versions[h.pos] : h.pos > 0 ? h.versions[h.pos - 1] : null;
+  const redoTarget = !edited && h.pos < h.versions.length - 1 ? h.versions[h.pos + 1] : null;
+  const undoTitle = undoDisabled || !undoTarget ? "" : ` title="点击后显示：${escapeHtml(undoTarget)}"`;
+  const redoTitle = redoDisabled || !redoTarget ? "" : ` title="点击后显示：${escapeHtml(redoTarget)}"`;
   const selected = t.selected !== false;
+  const deleted = t.deleted ? " deleted" : "";
+  const delHint = t.deleted ? "&#10;（文件已不存在，已被删除）" : "";
   return `<tr class="${changed ? "changed" : ""}${hit ? " regex-hit" : ""}" data-idx="${i}">
         <td class="sel-cell">
           <input type="checkbox" class="row-sel" data-idx="${i}" ${selected ? "checked" : ""} title="选中后才会被大模型解析" />
         </td>
-        <td class="current-name" title="${escapeHtml(t.filename)}${t.relDir ? `&#10;${escapeHtml(t.relDir + t.filename)}` : ""}">${curName}</td>
+        <td class="current-name${deleted}" title="${escapeHtml(t.filename)}${delHint}${t.relDir ? `&#10;${escapeHtml(t.relDir + t.filename)}` : ""}">${curName}</td>
         <td class="target-cell">
           <input
             class="target-input"
@@ -307,8 +315,8 @@ function targetRowHtml(t, i) {
         <td class="ops-cell">${
           showOps
             ? `<span class="ops">
-                <button type="button" class="op-btn undo-btn" data-op="undo" data-idx="${i}" title="在目标名位置显示上一个文件名" ${undoDisabled ? "disabled" : ""}><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h24v24H0z" fill="none" /><path fill="currentColor" d="M15 7H5.06l2.97-2.97l-1.06-1.06l-3.895 3.895a1.26 1.26 0 0 0 0 1.77L6.97 12.53l1.06-1.06L5.06 8.5H15c2.48 0 4.5 2.02 4.5 4.5s-2.02 4.5-4.5 4.5H7V19h8c3.31 0 6-2.69 6-6s-2.69-6-6-6" /></svg></button>
-                <button type="button" class="op-btn redo-btn" data-op="redo" data-idx="${i}" title="在目标名位置显示下一个文件名" ${redoDisabled ? "disabled" : ""}><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h24v24H0z" fill="none" /><path fill="currentColor" d="M20.925 6.865L17.03 2.97l-1.06 1.06L18.94 7H9c-3.31 0-6 2.69-6 6s2.69 6 6 6h8v-1.5H9c-2.48 0-4.5-2.02-4.5-4.5S6.52 8.5 9 8.5h9.94l-2.97 2.97l1.06 1.06l3.895-3.895a1.26 1.26 0 0 0 0-1.77" /></svg></button>
+                <button type="button" class="op-btn undo-btn" data-op="undo" data-idx="${i}"${undoTitle} ${undoDisabled ? "disabled" : ""}><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h24v24H0z" fill="none" /><path fill="currentColor" d="M15 7H5.06l2.97-2.97l-1.06-1.06l-3.895 3.895a1.26 1.26 0 0 0 0 1.77L6.97 12.53l1.06-1.06L5.06 8.5H15c2.48 0 4.5 2.02 4.5 4.5s-2.02 4.5-4.5 4.5H7V19h8c3.31 0 6-2.69 6-6s-2.69-6-6-6" /></svg></button>
+                <button type="button" class="op-btn redo-btn" data-op="redo" data-idx="${i}"${redoTitle} ${redoDisabled ? "disabled" : ""}><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h24v24H0z" fill="none" /><path fill="currentColor" d="M20.925 6.865L17.03 2.97l-1.06 1.06L18.94 7H9c-3.31 0-6 2.69-6 6s2.69 6 6 6h8v-1.5H9c-2.48 0-4.5-2.02-4.5-4.5S6.52 8.5 9 8.5h9.94l-2.97 2.97l1.06 1.06l3.895-3.895a1.26 1.26 0 0 0 0-1.77" /></svg></button>
               </span>`
             : ""
         }</td>
@@ -717,6 +725,10 @@ function syncRowAfterRename(outcomes) {
       .filter((o) => o.status === "ok")
       .map((o) => [normalizePath(o.from), normalizePath(o.to)]),
   );
+  // 改名时发现源文件已被删除：放弃改名，行标记删除（当前文件名加删除线）
+  const missingPaths = new Set(
+    outcomes.filter((o) => o.status === "missing").map((o) => normalizePath(o.from)),
+  );
   const byToPath = new Map(
     Array.from(byFromPath.entries()).map(([from, to]) => [to, from]),
   );
@@ -726,6 +738,8 @@ function syncRowAfterRename(outcomes) {
       const to = byFromPath.get(p);
       const newFilename = to.slice(to.lastIndexOf("/") + 1);
       rowApplied(t, newFilename);
+    } else if (missingPaths.has(p)) {
+      t.deleted = true;
     }
   }
 }
@@ -875,6 +889,7 @@ async function executeRename() {
     const [outcomes, historyStatus] = await invoke("rename_items", { items });
     const okCount = outcomes.filter((o) => o.status === "ok").length;
     const failCount = outcomes.filter((o) => o.status === "failed").length;
+    const missingCount = outcomes.filter((o) => o.status === "missing").length;
     const skipCount = outcomes.filter((o) => o.status === "skipped").length;
     renderHistory(historyStatus);
     await refreshLogs();
@@ -893,7 +908,9 @@ async function executeRename() {
     syncRowAfterRename(outcomes);
     renderTargets();
     showRunHint(
-      `完成：成功 ${okCount} · 失败 ${failCount} · 跳过 ${skipCount + skipSame}`,
+      `完成：成功 ${okCount} · 失败 ${failCount} · 跳过 ${skipCount + skipSame}${
+        missingCount > 0 ? ` · 已删除 ${missingCount}` : ""
+      }`,
       failCount + skipCount > 0 ? "" : "ok",
     );
   } catch (err) {
@@ -1392,6 +1409,38 @@ function bindEvents() {
       renderTargets();
     });
   }
+
+  // 当前文件名右键菜单：定位（Finder 打开并选中该文件）
+  const ctxMenu = $("#ctx-menu");
+  $("#targets-body").addEventListener("contextmenu", (e) => {
+    const cell = e.target.closest(".current-name");
+    if (!cell) return;
+    e.preventDefault();
+    const i = Number(cell.closest("tr")?.querySelector(".target-input")?.dataset.idx);
+    const t = window.App.targets[i];
+    if (!t) return;
+    ctxMenu.dataset.path = t.path;
+    ctxMenu.hidden = false;
+    // 贴着光标，且不超出窗口
+    const w = ctxMenu.offsetWidth || 90;
+    const h = ctxMenu.offsetHeight || 34;
+    ctxMenu.style.left = `${Math.min(e.clientX, window.innerWidth - w - 8)}px`;
+    ctxMenu.style.top = `${Math.min(e.clientY, window.innerHeight - h - 8)}px`;
+  });
+  // 点击任意位置（含菜单外）关闭右键菜单
+  document.addEventListener(
+    "click",
+    (e) => {
+      if (!ctxMenu.hidden && !e.target.closest("#ctx-menu")) ctxMenu.hidden = true;
+    },
+    true,
+  );
+  $("#ctx-reveal").addEventListener("click", () => {
+    ctxMenu.hidden = true;
+    const path = ctxMenu.dataset.path;
+    if (!path) return;
+    invoke("reveal_in_finder", { path }).catch((err) => showRunHint(String(err), "err"));
+  });
 
   $("#btn-clear-targets").addEventListener("click", () => {
     window.App.targets = [];

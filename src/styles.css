@@ -363,6 +363,37 @@ button.danger:hover:not(:disabled) {
 .assets-table .current-name {
   cursor: pointer;
 }
+/* 已被删除的文件：当前文件名加删除线（改名时发现源文件不存在） */
+.assets-table .current-name.deleted {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+/* 右键菜单（当前文件名 → 定位） */
+.ctx-menu {
+  position: fixed;
+  z-index: 1001;
+  min-width: 88px;
+  padding: 4px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.16);
+}
+.ctx-menu button {
+  display: block;
+  width: 100%;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-size: 12px;
+  text-align: left;
+  padding: 6px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.ctx-menu button:hover {
+  background: #eef2f7;
+}
 /* 行内操作按钮：undo 浅红、redo 浅绿 */
 .assets-table .ops .undo-btn {
   background: #fee2e2;

@@ -390,6 +390,31 @@ pub async fn open_log_dir(app: AppHandle) -> Result<()> {
     open::that(&dir).map_err(|e| AppError::fs(format!("无法打开日志目录 {}：{e}", dir.display())))
 }
 
+/// 在系统文件管理器中显示文件并选中（macOS: `open -R`）。
+#[tauri::command]
+pub async fn reveal_in_finder(path: String) -> Result<()> {
+    let p = PathBuf::from(&path);
+    if !p.exists() {
+        return Err(AppError::fs(format!(
+            "文件已不存在：{path}（可能已被删除）"
+        )));
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg("-R")
+            .arg(&p)
+            .spawn()
+            .map_err(|e| AppError::fs(format!("无法打开 Finder：{e}")))?;
+        Ok(())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = &p;
+        Err(AppError::internal("当前平台不支持在文件管理器中定位"))
+    }
+}
+
 /// 原生目录选择对话框。返回选中的目录绝对路径；取消时返回 None。
 #[tauri::command]
 pub async fn pick_dir() -> Result<Option<String>> {
