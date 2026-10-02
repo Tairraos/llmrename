@@ -51,7 +51,7 @@
             title="补充给大模型的要求，随「解析」一并发送"
           />
           <span class="regex-wrap">
-            <button id="btn-regex" type="button" class="secondary" title="用正则批量改名（实时预览）">正则</button>
+            <button id="btn-regex" type="button" class="secondary" title="用正则批量改名（实时预览）"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h24v24H0z" fill="none" /><circle cx="7" cy="12" r="2.6" fill="currentColor" /><path d="M17 7.8v8.4M13.6 9.9l6.8 4.2M20.4 9.9l-6.8 4.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none" /></svg>正则改名</button>
             <div id="regex-popover" class="regex-popover" hidden>
               <div class="regex-pop-head">
                 <span>正则改名预览（不匹配扩展名）</span>
@@ -68,8 +68,8 @@
               <span id="regex-hint" class="hint"></span>
             </div>
           </span>
-          <button id="btn-ai-fill" class="primary">解析</button>
-          <button id="btn-stop-fill" class="secondary" disabled>停止</button>
+          <button id="btn-ai-fill" class="primary"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h24v24H0z" fill="none" /><path fill="currentColor" d="M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4L6.5 9.5L1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z" /></svg>解析改名</button>
+          <button id="btn-stop-fill" class="secondary" disabled><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h24v24H0z" fill="none" /><path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg>暂停解析</button>
         </div>
         <div class="targets-scroll">
           <table class="assets-table">
@@ -95,8 +95,8 @@
         <button id="btn-redo" class="secondary" disabled>
           <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h24v24H0z" fill="none" /><path fill="currentColor" d="M20.925 6.865L17.03 2.97l-1.06 1.06L18.94 7H9c-3.31 0-6 2.69-6 6s2.69 6 6 6h8v-1.5H9c-2.48 0-4.5-2.02-4.5-4.5S6.52 8.5 9 8.5h9.94l-2.97 2.97l1.06 1.06l3.895-3.895a1.26 1.26 0 0 0 0-1.77" /></svg>
           重做</button>
-          <button id="btn-clear-targets" class="secondary">清空列表</button>
-          <button id="btn-execute" class="danger">开始重命名</button>
+          <button id="btn-clear-targets" class="secondary"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h24v24H0z" fill="none" /><path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" /></svg>清空列表</button>
+          <button id="btn-execute" class="danger"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h24v24H0z" fill="none" /><path fill="currentColor" d="M22 5.18L10.59 16.6l-4.24-4.24l1.41-1.41l2.83 2.83l10-10L22 5.18zm-2.21 5.04c.13.57.21 1.17.21 1.78c0 4.42-3.58 8-8 8s-8-3.58-8-8s3.58-8 8-8c1.58 0 3.04.46 4.28 1.25l1.44-1.44C16.1 2.67 14.13 2 12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c5.52 0 10-4.48 10-10c0-1.19-.22-2.33-.6-3.39l-1.61 1.61z" /></svg>开始重命名</button>
         </div>
       </section>
     </main>

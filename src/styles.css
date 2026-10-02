@@ -168,6 +168,13 @@ button.danger:hover:not(:disabled) {
 .actions button svg {
   flex-shrink: 0;
 }
+/* 主操作按钮（模板栏右组 + 底部按钮行）紧凑尺寸：小号字体 + 小内边距 */
+.template-bar button:not(.regex-close),
+.actions button {
+  padding: 4px 9px;
+  font-size: 12px;
+  gap: 5px;
+}
 .row {
   margin-bottom: 10px;
 }

@@ -680,7 +680,7 @@ async function aiFillTargets(resume = false) {
     );
     if (window.App.fill.stopRequested && remaining.length > 0) {
       window.App.fill.stopped = true;
-      showRunHint(`已停止：剩余 ${remaining.length} 个文件未解析，点「继续」恢复`, "");
+      showRunHint(`已暂停：剩余 ${remaining.length} 个文件未解析，点「继续解析」恢复`, "");
     } else {
       showRunHint("目标名已填充，可手动调整后执行", "ok");
     }
@@ -832,24 +832,30 @@ async function loadVersion() {
 }
 
 /* ---------------- 填充停止/继续按钮状态机 ---------------- */
-/* 未开始 → disabled「停止」；进行中 → 可点「停止」；停止中 → disabled「停止中…」；
-   已停止且有未解析文件 → 可点「继续」；全部完成 → disabled */
+/* 未开始 → disabled「暂停解析」；进行中 → 可点「暂停解析」；
+   暂停中 → disabled「暂停中…」；
+   已暂停且有未解析文件 → 可点「继续解析」；全部完成 → disabled */
+const ICON_PAUSE =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h24v24H0z" fill="none"/><path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
+const ICON_PLAY =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h24v24H0z" fill="none"/><path fill="currentColor" d="M8 5v14l11-7z"/></svg>';
+
 function updateStopButton() {
   const btn = $("#btn-stop-fill");
   if (!btn) return;
   const f = window.App.fill;
   if (f.running && f.stopRequested) {
     btn.disabled = true;
-    btn.textContent = "停止中…";
+    btn.innerHTML = ICON_PAUSE + "暂停中…";
   } else if (f.running) {
     btn.disabled = false;
-    btn.textContent = "停止";
+    btn.innerHTML = ICON_PAUSE + "暂停解析";
   } else if (f.stopped) {
     btn.disabled = false;
-    btn.textContent = "继续";
+    btn.innerHTML = ICON_PLAY + "继续解析";
   } else {
     btn.disabled = true;
-    btn.textContent = "停止";
+    btn.innerHTML = ICON_PAUSE + "暂停解析";
   }
 }
 
@@ -1251,7 +1257,7 @@ async function boot() {
         }
         case "stopped":
           consoleStatus(
-            `已停止：剩余 ${p.remaining ?? "?"} 个文件未解析，可点「继续」恢复`,
+            `已暂停：剩余 ${p.remaining ?? "?"} 个文件未解析，可点「继续解析」恢复`,
             "c-err",
           );
           break;
