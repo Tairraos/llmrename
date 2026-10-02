@@ -689,6 +689,11 @@ button#btn-regex:hover:not(:disabled) {
   flex-direction: column;
   gap: 8px;
 }
+/* display:flex 是作者样式，会盖过 UA 对 [hidden] 的 display:none——
+   必须显式声明，否则弹层永远显示，hidden 属性开关失效 */
+.regex-popover[hidden] {
+  display: none;
+}
 .regex-pop-head {
   display: flex;
   align-items: center;
