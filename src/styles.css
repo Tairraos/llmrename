@@ -100,7 +100,7 @@ input[type="text"],
 input[type="url"],
 input[type="password"],
 input[type="number"] {
-  padding: 8px 10px;
+  padding: 5px 8px;
   border: 1px solid var(--border);
   border-radius: 6px;
   font-size: 13px;
@@ -157,13 +157,13 @@ button.danger:hover:not(:disabled) {
 .row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-top: 10px;
+  gap: 5px;
+  margin-top: 5px;
 }
 .actions button {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
 }
 .actions button svg {
   flex-shrink: 0;
@@ -633,20 +633,20 @@ button.danger:hover:not(:disabled) {
 .input-row input {
   flex: 1;
 }
-.icon-btn {
+.text-btn {
   padding: 7px 11px;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1;
 }
 
 /* 模板摘要行 */
 .template-bar {
-  margin-bottom: 10px;
+  margin-bottom: 5px;
 }
 .template-bar code {
   background: #eef2ff;
   color: #3730a3;
-  padding: 2px 8px;
+  padding: 2px 0;
   border-radius: 4px;
   font-size: 12px;
   /* 右组加入用户提示词输入框后，摘要单行省略避免挤压 */
@@ -676,7 +676,7 @@ button#btn-regex:hover:not(:disabled) {
 .actions.status-line {
   height: 22px;
   gap: 12px;
-  margin-top: 8px;
+  margin-top: 5px;
   min-width: 0;
 }
 .actions.status-line .hint {
