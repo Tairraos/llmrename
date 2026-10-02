@@ -40,9 +40,7 @@ function renderTemplateFields() {
     .map((f) => `<li>${escapeHtml(f.name)} · ${escapeHtml(f.example)}</li>`)
     .join("");
   $("#template-preview").textContent =
-    fields.length > 0
-      ? `示例：${renderPatternExample(pattern)}.jpg（仅供提示；点「用视觉模型填充目标名」生成真实目标名）`
-      : "";
+    fields.length > 0 ? `示例：${renderPatternExample(pattern)}.jpg` : "";
 }
 
 // 文件名拆分：最后一个点之后为扩展名（无点或点在开头则视为无扩展名）
@@ -768,14 +766,27 @@ const RECOMMENDED_FIELDS = ["人物", "人数", "场景", "动作", "季节", "�
 
 function renderFieldChips() {
   $("#field-chips").innerHTML = RECOMMENDED_FIELDS.map(
-    (f) => `<button type="button" class="chip" data-field="${f}">{${f}}</button>`,
+    (f) =>
+      `<button type="button" class="chip" data-field="${f}" title="点击加入模板，再点移除">{${f}}</button>`,
   ).join("");
+}
+
+// 推荐字段点击切换：模板里没有则追加，已有则移除（含移除后孤立的分隔符）
+function toggleFieldInPattern(pattern, field) {
+  const token = `{${field}}`;
+  if (!pattern.includes(token)) {
+    const cur = pattern.trim();
+    return cur ? `${cur}-${token}` : token;
+  }
+  return pattern
+    .replaceAll(token, "")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 function insertFieldChip(field) {
   const inp = $("#template-pattern");
-  const prefix = inp.value.trim() ? "-" : "";
-  inp.value = inp.value.trim() + prefix + `{${field}}`;
+  inp.value = toggleFieldInPattern(inp.value, field);
   inp.dispatchEvent(new Event("input"));
   inp.focus();
 }
