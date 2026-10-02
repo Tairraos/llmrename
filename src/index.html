@@ -51,10 +51,10 @@
             title="补充给大模型的要求，随「解析」一并发送"
           />
           <span class="regex-wrap">
-            <button id="btn-regex" type="button" class="secondary" title="用正则批量改名（实时预览）"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h24v24H0z" fill="none" /><circle cx="7" cy="12" r="2.6" fill="currentColor" /><path d="M17 7.8v8.4M13.6 9.9l6.8 4.2M20.4 9.9l-6.8 4.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none" /></svg>正则改名</button>
+            <button id="btn-regex" type="button" class="secondary" title="用正则查找替换批量改名（实时预览）"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h24v24H0z" fill="none" /><circle cx="7" cy="12" r="2.6" fill="currentColor" /><path d="M17 7.8v8.4M13.6 9.9l6.8 4.2M20.4 9.9l-6.8 4.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none" /></svg>查找替换</button>
             <div id="regex-popover" class="regex-popover" hidden>
               <div class="regex-pop-head">
-                <span>正则改名预览（不匹配扩展名）</span>
+                <span>查找替换预览（不匹配扩展名）</span>
                 <button type="button" id="btn-regex-close" class="regex-close" title="关闭（保留已预览的方案）">✕</button>
               </div>
               <label class="regex-row">
@@ -68,7 +68,7 @@
               <span id="regex-hint" class="hint"></span>
               <div class="regex-pop-foot">
                 <button type="button" id="btn-regex-find" class="secondary">查找</button>
-                <button type="button" id="btn-regex-select" class="secondary">选中</button>
+                <button type="button" id="btn-regex-select" class="secondary">替换</button>
               </div>
             </div>
           </span>

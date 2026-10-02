@@ -238,7 +238,8 @@ function onRegexFind() {
   }
 }
 
-// 「选中」：把所有命中行的复选框打上勾
+// 「替换」：勾选全部命中行，并把预览值落定为可编辑目标名、关闭弹层。
+// （落定与关闭复用 closeRegexPopover：写状态、进行级历史、清空正则字段）
 function onRegexSelect() {
   const hint = $("#regex-hint");
   const matched = matchedRowIndices();
@@ -255,12 +256,7 @@ function onRegexSelect() {
     if (rcb) rcb.checked = true;
   }
   lastRowCheckedIdx = matched[matched.length - 1];
-  const all = $("#sel-all");
-  if (all) all.checked = window.App.targets.every((x) => x.selected !== false);
-  if (hint) {
-    hint.textContent = `已勾选 ${matched.length} 行命中项`;
-    hint.className = "hint";
-  }
+  closeRegexPopover();
 }
 
 // 单行表格 HTML（renderTargets 与 item-done 就地更新共用同一模板）
