@@ -61,15 +61,20 @@ fn guide_for(field: &str) -> &'static str {
 }
 
 /// 用户提示词：只列出待提取字段及各自的提取指南，不发送文件名与模板。
-pub fn user_prompt(fields: &[String]) -> String {
+/// `user_hint` 为用户在界面上补充的要求（可空），追加在字段指南之后。
+pub fn user_prompt(fields: &[String], user_hint: Option<&str>) -> String {
     let items: Vec<String> = fields
         .iter()
         .map(|f| format!("{f}：{}", guide_for(f)))
         .collect();
-    format!(
+    let mut prompt = format!(
         "请提取以下字段，并只回复一个 JSON 对象（键为字段名，值为提取结果）：\n{}",
         items.join("\n")
-    )
+    );
+    if let Some(hint) = user_hint.map(str::trim).filter(|s| !s.is_empty()) {
+        prompt.push_str(&format!("\n用户补充要求：{hint}"));
+    }
+    prompt
 }
 
 /// 从模板提取字段名（复用 types 层的解析，去重保序）。
@@ -92,7 +97,7 @@ mod tests {
 
     #[test]
     fn user_prompt_contains_guides_not_filename_or_template() {
-        let prompt = user_prompt(&["人物".into(), "日夜".into()]);
+        let prompt = user_prompt(&["人物".into(), "日夜".into()], None);
         assert!(prompt.contains("人物"));
         assert!(prompt.contains("男孩子"));
         assert!(prompt.contains("夜晚"), "日夜指南应包含夜晚");
@@ -102,17 +107,25 @@ mod tests {
 
     #[test]
     fn unknown_field_gets_generic_guide() {
-        let prompt = user_prompt(&["camera".into()]);
+        let prompt = user_prompt(&["camera".into()], None);
         assert!(prompt.contains("camera"));
         assert!(prompt.contains("简短的中文描述"));
     }
 
     #[test]
     fn smart_field_gets_naming_guide() {
-        let prompt = user_prompt(&["智能".into()]);
+        let prompt = user_prompt(&["智能".into()], None);
         assert!(prompt.contains("智能"));
         assert!(prompt.contains("12 个汉字"), "智能指南应包含 12 汉字上限");
         assert!(prompt.contains("完整文件名"));
+    }
+
+    #[test]
+    fn user_hint_appended_when_present() {
+        let with = user_prompt(&["人物".into()], Some("重点突出人物表情"));
+        assert!(with.contains("用户补充要求：重点突出人物表情"));
+        let blank = user_prompt(&["人物".into()], Some("   "));
+        assert!(!blank.contains("用户补充要求"), "空白提示词不追加");
     }
 
     #[test]

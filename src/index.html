@@ -43,6 +43,13 @@
         <div class="row template-bar">
           <span class="hint">模板：</span>
           <code id="template-summary">（未设置）</code>
+          <input
+            id="user-hint"
+            type="text"
+            spellcheck="false"
+            placeholder="用户提示词"
+            title="补充给大模型的要求，随「解析」一并发送"
+          />
           <span class="regex-wrap">
             <button id="btn-regex" type="button" class="secondary" title="用正则批量改名（实时预览）">正则</button>
             <div id="regex-popover" class="regex-popover" hidden>

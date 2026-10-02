@@ -127,6 +127,7 @@ pub async fn ai_fill_targets(
     app: AppHandle,
     items: Vec<RenameItem>,
     pattern: String,
+    user_hint: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<Vec<RenameItem>> {
     // 每次发起填充（含「继续」）都重置停止标志
@@ -207,7 +208,14 @@ pub async fn ai_fill_targets(
             }
         };
 
-        let result = service::vision::extract_abs(&path, &pattern, &model, &mut on_event).await;
+        let result = service::vision::extract_abs(
+            &path,
+            &pattern,
+            &model,
+            user_hint.as_deref(),
+            &mut on_event,
+        )
+        .await;
         match result {
             Ok(fields_json) => {
                 let base = service::renderer::render_plan(&pattern, &fields_json);

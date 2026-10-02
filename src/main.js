@@ -658,7 +658,12 @@ async function aiFillTargets(resume = false) {
       path: t.path,
       target: composeTarget(t),
     }));
-    const filled = await invoke("ai_fill_targets", { items, pattern });
+    const userHint = $("#user-hint").value.trim();
+    const filled = await invoke("ai_fill_targets", {
+      items,
+      pattern,
+      userHint: userHint || null,
+    });
     const byPath = new Map((filled ?? []).map((f) => [f.path, f.target]));
     for (const t of window.App.targets) {
       if (byPath.has(t.path)) {

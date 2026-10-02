@@ -641,11 +641,20 @@ button.danger:hover:not(:disabled) {
   padding: 2px 8px;
   border-radius: 4px;
   font-size: 12px;
-  word-break: break-all;
+  /* 右组加入用户提示词输入框后，摘要单行省略避免挤压 */
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-/* 正则按钮在右组最左（其后为解析/停止），浅蓝底以示预览模式 */
-.template-bar .regex-wrap {
+/* 正则按钮在右组（用户提示词 → 正则 → 解析 → 停止），浅蓝底以示预览模式 */
+.template-bar #user-hint {
   margin-left: auto;
+  width: 200px;
+}
+.template-bar .regex-wrap {
+  margin-left: 0;
 }
 button#btn-regex {
   background: #e8f1ff;

@@ -26,10 +26,12 @@ pub type VisionEventCallback<'a> = dyn FnMut(VisionEvent) + Send + 'a;
 
 /// 按绝对路径提取要素（拖放/AI 填充场景，未受目录约束）。
 /// 请求为流式；`on_delta` 逐段收到模型的原始增量文本（可为空实现）。
+/// `user_hint` 为用户在界面上补充的要求（可空），追加进用户提示词。
 pub async fn extract_abs(
     path: &Path,
     pattern: &str,
     model: &ModelConfig,
+    user_hint: Option<&str>,
     on_event: &mut VisionEventCallback<'_>,
 ) -> Result<String> {
     let filename = path
@@ -48,7 +50,7 @@ pub async fn extract_abs(
         ))
     })?;
     let b64 = base64::engine::general_purpose::STANDARD.encode(bytes);
-    let body = build_body(model, &fields, &mime, &b64);
+    let body = build_body(model, &fields, &mime, &b64, user_hint);
     let content = send_and_collect(model, body, on_event).await?;
     let extracted: ExtractedFieldsJson = parse_json_text(&content)?;
     serde_json::to_string(&extracted.fields)
@@ -71,7 +73,13 @@ fn mime_for(filename: &str) -> String {
     }
 }
 
-fn build_body(model: &ModelConfig, fields: &[String], mime: &str, b64: &str) -> serde_json::Value {
+fn build_body(
+    model: &ModelConfig,
+    fields: &[String],
+    mime: &str,
+    b64: &str,
+    user_hint: Option<&str>,
+) -> serde_json::Value {
     json!({
         "model": model.model,
         "messages": [
@@ -79,7 +87,7 @@ fn build_body(model: &ModelConfig, fields: &[String], mime: &str, b64: &str) -> 
             {
                 "role": "user",
                 "content": [
-                    { "type": "text", "text": crate::service::prompts::user_prompt(fields) },
+                    { "type": "text", "text": crate::service::prompts::user_prompt(fields, user_hint) },
                     {
                         "type": "image_url",
                         "image_url": { "url": format!("data:{mime};base64,{b64}") }
@@ -479,6 +487,7 @@ mod tests {
             &img,
             "{description}",
             &model,
+            None,
             &mut |ev: VisionEvent| match ev {
                 VisionEvent::Delta(t) => d2.lock().unwrap().push(t),
                 VisionEvent::Connecting { .. } => p2.lock().unwrap().push("connecting".into()),
