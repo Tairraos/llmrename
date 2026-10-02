@@ -341,12 +341,19 @@ function consoleFileHeader(filename) {
 
 /* ---------------- 模板设置 dialog ---------------- */
 
+// showModal 默认把焦点给第一个可聚焦控件（按钮上会出现蓝框），
+// 打开后把焦点挪到对话框本身（dialog 带 tabindex=-1，且 focus 样式已去 outline）
+function focusDialog(sel) {
+  $(sel).focus();
+}
+
 function openTemplateDialog() {
   const cfg = window.App.config;
   $("#template-pattern").value = cfg?.template?.pattern ?? "";
   smartStash = ""; // 每次打开 dialog 重置 {智能} 的恢复暂存
   renderTemplateFields();
   $("#template-dialog").showModal();
+  focusDialog("#template-dialog");
 }
 
 function closeTemplateDialog() {
@@ -369,6 +376,7 @@ function openModelDialog() {
     $("#model-timeout").value = cfg.model.timeout_secs ?? 60;
   }
   $("#model-dialog").showModal();
+  focusDialog("#model-dialog");
   // 打开时静默拉取模型列表（失败不打扰用户）
   loadModels(true);
 }
@@ -787,6 +795,7 @@ async function refreshLogs() {
 
 function openLogsDialog() {
   $("#logs-dialog").showModal();
+  focusDialog("#logs-dialog");
   refreshLogs();
 }
 
@@ -963,6 +972,10 @@ function bindEvents() {
   $("#btn-open-template").addEventListener("click", openTemplateDialog);
   $("#btn-open-logs").addEventListener("click", openLogsDialog);
   $("#btn-close-logs").addEventListener("click", closeLogsDialog);
+  // 各 dialog 右上角 ✕
+  $("#btn-close-template-x").addEventListener("click", closeTemplateDialog);
+  $("#btn-close-model-x").addEventListener("click", closeModelDialog);
+  $("#btn-close-logs-x").addEventListener("click", closeLogsDialog);
 
   // 模板 dialog 防误关（同模型 dialog：点遮罩/Esc/回车不关闭）
   $("#template-form").addEventListener("submit", (e) => e.preventDefault());

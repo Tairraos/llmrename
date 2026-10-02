@@ -95,7 +95,8 @@
     </main>
 
     <!-- ③ 模板设置 dialog -->
-    <dialog id="template-dialog" class="app-dialog">
+    <dialog id="template-dialog" class="app-dialog" tabindex="-1">
+      <button type="button" id="btn-close-template-x" class="dialog-close" title="关闭">✕</button>
       <form method="dialog" id="template-form">
         <h2>模板设置</h2>
         <label class="field">
@@ -126,7 +127,8 @@
     </dialog>
 
     <!-- ④ 模型设置 dialog -->
-    <dialog id="model-dialog" class="app-dialog">
+    <dialog id="model-dialog" class="app-dialog" tabindex="-1">
+      <button type="button" id="btn-close-model-x" class="dialog-close" title="关闭">✕</button>
       <form method="dialog" id="model-form">
         <h2>模型设置</h2>
         <label class="field">
@@ -172,7 +174,8 @@
     </dialog>
 
     <!-- ⑤ 重命名日志 dialog -->
-    <dialog id="logs-dialog" class="app-dialog">
+    <dialog id="logs-dialog" class="app-dialog" tabindex="-1">
+      <button type="button" id="btn-close-logs-x" class="dialog-close" title="关闭">✕</button>
       <div class="dialog-body">
         <h2>重命名日志</h2>
         <div class="row">
