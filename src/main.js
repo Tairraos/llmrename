@@ -16,6 +16,18 @@ let findSig = "";
 // 表头「当前文件名」排序方向（null=未排序）
 let nameSortDir = null;
 
+// 按当前文件名自然排序（localeCompare numeric：a2 < a10）
+function sortTargetsByName(dir) {
+  window.App.targets.sort(
+    (a, b) =>
+      dir *
+      String(a.filename).localeCompare(String(b.filename), undefined, {
+        numeric: true,
+        sensitivity: "base",
+      }),
+  );
+}
+
 window.App = {
   config: null, // ModelConfig + TemplateConfig + RenameOptions
   targets: [], // { path, filename, target }[]（待重命名单）
@@ -605,6 +617,10 @@ function mergeTargets(entries) {
       history,
       selected: true,
     });
+  }
+  // 排序激活时，新加入的文件并入现有排序（表头 ▲/▼ 始终反映真实顺序）
+  if (nameSortDir !== null) {
+    sortTargetsByName(nameSortDir === "asc" ? 1 : -1);
   }
   renderTargets();
 }
@@ -1367,15 +1383,7 @@ function bindEvents() {
   if (nameCol) {
     nameCol.addEventListener("click", () => {
       nameSortDir = nameSortDir === "asc" ? "desc" : "asc";
-      const dir = nameSortDir === "asc" ? 1 : -1;
-      window.App.targets.sort(
-        (a, b) =>
-          dir *
-          String(a.filename).localeCompare(String(b.filename), undefined, {
-            numeric: true,
-            sensitivity: "base",
-          }),
-      );
+      sortTargetsByName(nameSortDir === "asc" ? 1 : -1);
       // 行序变了：shift 锚点失效，查找从头开始
       lastRowCheckedIdx = null;
       findCursor = -1;
@@ -1390,6 +1398,10 @@ function bindEvents() {
     window.App.fill.okPaths.clear();
     window.App.fill.stopped = false;
     updateStopButton();
+    // 清空列表同时复位表头排序指示（新拖入的文件按收集顺序展示）
+    nameSortDir = null;
+    const nameCol = document.querySelector("th.current-name-col");
+    if (nameCol) nameCol.textContent = "当前文件名";
     renderTargets();
   });
   $("#btn-execute").addEventListener("click", executeRename);
