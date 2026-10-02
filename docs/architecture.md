@@ -44,19 +44,26 @@ llmrename 是一个 Tauri 2 桌面应用：纯 HTML/CSS/JS 前端运行在系统
 
 ## 关键数据流
 
-### 1. 保存配置
-`UI 表单 → invoke save_config → runtime::save_config → config::AppConfig::save`
+### 1. 加载 / 保存配置
+`UI → invoke load_config → runtime::load_config → config::load`（同步内存 AppState）
+`UI 表单 → invoke save_model_config / save_template_config → config::save_model / save_template`（模型与模板分开保存，互不覆盖）
 
-### 2. 扫描资产库
-`UI → invoke scan_assets → runtime::scan_assets → repo::scanner::scan(path, options) → Vec<AssetEntry>`
+### 2. 收集文件（拖放 / 选择）
+`UI（tauri://drag-drop / pick_files / pick_dir）→ invoke collect_targets → repo::targets::collect_targets`
+目录递归、扩展名过滤、去重、按文件名自然排序；`AssetEntry` 含 `path / filename / relative_path`。
 
-### 3. 预览重命名（不发模型请求）
-`UI → invoke preview_rename → runtime::preview_rename → service::namer::preview(entries, RenderPlan) → Vec<RenamePreview>`
-模板字段按**已存在格式名猜测**（如 `{date}` 视为 YYYY-MM-DD 类别），不保证真实；真实提取在 execute 中由模型完成。
+### 3. AI 填充目标名（逐文件流式）
+`UI → invoke ai_fill_targets(items, pattern, user_hint) → service::vision::extract_abs（每张图一次调用）`
+- Runtime 逐文件发事件：`vision-status`（connecting/extracting/parsing/item-done/stopped）+ `vision-stream`（SSE 增量回显）
+- item-done 携带渲染好的 target，前端**立即更新对应列表行**（不等整体返回）
+- 提取结果解析（剥围栏/寒暄、单引号容错）见 `vision-model-contract.md`
+- `stop_ai_fill` 置原子标志，在文件边界生效（暂停解析）
 
 ### 4. 执行重命名
-`UI → invoke execute_rename → runtime::execute_rename → service::namer::execute(paths, template, options, ModelConfig)`
-逐批调用视觉模型（见 `vision-model-contract.md`）→ 得到 `ExtractedFields` → 渲染 base → 防冲突生成最终名 → 校验后缀/黑名单 → `repo::renamer::rename` → `repo::logbook::append`（成功与失败逐条落盘 JSONL）。
+`UI → invoke rename_items(items) → service::namer::rename_explicit → repo::renamer::rename_path`
+- 逐条校验目标名（空/路径分隔符/NUL/扩展名白名单），目标已存在时自动追加序号（`名称 1.ext` 起）
+- 每条结果（ok/failed/skipped）写 `repo::logbook::append`（JSONL）并记入内存 HistoryStore
+- 返回 `(Vec<RenameOutcome>, HistoryStatus)`；行级 undo/redo 在**前端**完成（每行 10 条版本链），后端 `undo_rename/redo_rename` 保留为 API（当前 UI 未调用）
 
 ### 5. 查看日志
 `UI invoke list_logs / open_log_dir` → `repo::logbook`。
@@ -70,7 +77,7 @@ llmrename 是一个 Tauri 2 桌面应用：纯 HTML/CSS/JS 前端运行在系统
 
 ## UI 状态
 
-前端无框架，全局对象 `window.App` 持有状态：config、assets、previews、logs、selectedPaths、isRunning。UI 更新走 `renderXxx()` 纯函数重建 DOM 片段。
+前端无框架，全局对象 `window.App` 持有状态：`config`、`targets`（行数组：path/filename/relDir/name/ext/history/selected）、`logs`、`running`、`historyApplied`、`fill`（解析状态机 + okPaths）、`regex`（正则预览查找/替换）。UI 更新走 `renderTargets()/renderLogs()` 重建 DOM；行级更新（AI 逐个返回）走 `updateTargetRowDom` 单行替换，避免整表重渲染打断编辑。
 
 ## 日志与错误
 

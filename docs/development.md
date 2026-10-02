@@ -15,9 +15,11 @@ pnpm install
 # 本地开发运行（vite dev server + tauri dev）
 pnpm tauri dev
 
-# 构建发布（自动 bump 版本；默认只出 .app，加 --dmg 出 dmg；
-#   交付物文件名带版本号 target/"LLM Rename_<版本>.app"；保留编译缓存）
+# 构建发布（默认 patch 版本 +1，可显式指定版本号；默认只出 .app，
+#   加 --dmg 出 dmg；交付物只保留 target/"LLM Rename_<版本>.app" 一份，
+#   旧版本下次构建时被替换；保留编译缓存）
 ./scripts/release.sh
+./scripts/release.sh 1.0.0    # 显式指定版本号（大版本发布）
 ./scripts/release.sh --dmg
 
 # 释放构建缓存占用的磁盘空间（手动，脚本不自动清理）
@@ -68,7 +70,7 @@ node --check src/main.js
 │   └── external/           # 外部参考（llms.txt）
 ├── scripts/
 │   ├── check.sh            # 门禁脚本
-│   ├── release.sh          # 本地发布构建（bump 版本 → build → 留档 → 清理）
+│   ├── release.sh          # 本地发布构建（bump 版本 → build → 清理；交付物只留 target/ 一份）
 │   ├── _bump_version.py    # 三处版本号同步 bump
 │   └── new-commit.sh       # 铁律提交辅助
 ├── src/                    # 前端：纯 HTML/CSS/JS（无框架）
@@ -98,7 +100,12 @@ node --check src/main.js
 ## 测试
 
 - `cargo test`：后端单元测试（模板渲染、防冲突、配置往返、日志追加、扫描排序）。
-- 前端暂无自动化测试（纯 DOM 渲染，语法检查兜底）；UI 行为变更需在 `execution-plan.md` 的记录表登记人工验证。
+- 前端行为验证：开发会话中用 **stub Tauri + headless Chrome** 做黑盒断言
+  （在 `src/index.html` 前注入 `window.__TAURI__` 桩，加载真实页面，
+  `--headless=new --dump-dom` 输出断言结果；不进仓库，验证后即删）。
+  断言真实渲染（computed style / 布局尺寸），不要只断言属性
+  （教训：`[hidden]` 被 CSS `display:flex` 架空时属性断言全绿但功能已坏）。
+- UI 行为变更需在 `execution-plan.md` 的记录表登记。
 
 ## 门禁
 

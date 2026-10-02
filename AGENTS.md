@@ -94,7 +94,7 @@ Types → Config → Repo → Service → Runtime
 ### 6.6 构建与发布
 
 1. **构建目标目录是项目根的 `target/`**（`src-tauri/.cargo/config.toml` 设定 `target-dir = "../target"`）。
-2. **每次 build 都必须提升版本号**：用 `./scripts/release.sh`（或 `python3 scripts/_bump_version.py`）自动 bump patch 版本，同步 `tauri.conf.json` / `Cargo.toml` / `package.json`。
+2. **每次 build 都必须提升版本号**：用 `./scripts/release.sh`（或 `python3 scripts/_bump_version.py`）自动 bump patch 版本，同步 `tauri.conf.json` / `Cargo.toml` / `package.json`；大版本发布可显式指定：`./scripts/release.sh 1.0.0`。
 3. **默认只构建 `.app`**；需要 `.dmg` 时显式传 `--dmg`（`./scripts/release.sh --dmg`）。
 4. **build 完成后保留编译缓存，只清理打包产物**：`target/release`、`target/debug` 等编译缓存一律不删，允许以后增量编译（冷全量约 1 分钟 vs 缓存增量约 1 秒）；需要释放空间时由用户手动清理。仅删除可再生成的产物：`dist/` 与 `target/release/bundle/`；遗留的 `src-tauri/target` 仍删除。`.app` 以版本号命名移到 `target/` 根（如 `LLM Rename_0.1.5.app`）；`--dmg` 时附加 `.dmg`。**交付物只保留 `target/` 一份**：不建 `release/` 留档目录、不留历史版本，旧版本在下次 build 时被新版本直接替换。
 5. **每次会话结束必须产出新版 .app**：会话收尾执行 `./scripts/release.sh`（自动 bump 版本 → 构建 → 清理打包产物），确保每轮会话都有一个带新版本号的可运行 `.app` 交付物。
