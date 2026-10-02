@@ -250,6 +250,7 @@ function consoleFileHeader(filename) {
 function openTemplateDialog() {
   const cfg = window.App.config;
   $("#template-pattern").value = cfg?.template?.pattern ?? "";
+  smartStash = ""; // 每次打开 dialog 重置 {智能} 的恢复暂存
   renderTemplateFields();
   $("#template-dialog").showModal();
 }
@@ -748,6 +749,7 @@ const FIELD_EXAMPLES = {
   天气: "晴天",
   日夜: "夜晚",
   色调: "暖",
+  智能: "海边日落漫步",
   date: "2026-09-18",
   time: "14-30-05",
   camera: "a7m4",
@@ -762,13 +764,28 @@ const FIELD_EXAMPLES = {
 const DEFAULT_EXAMPLE = "值";
 
 // 推荐的中文字段（与后端 field_example 对应，视觉模型可从图片提取）
-const RECOMMENDED_FIELDS = ["人物", "人数", "场景", "动作", "季节", "造型", "天气", "日夜", "色调"];
+// 「智能」特殊：模板只留 {智能}，目标名完全由大模型起（见 insertFieldChip）
+const RECOMMENDED_FIELDS = [
+  "人物",
+  "人数",
+  "场景",
+  "动作",
+  "季节",
+  "造型",
+  "天气",
+  "日夜",
+  "色调",
+  "智能",
+];
 
 function renderFieldChips() {
-  $("#field-chips").innerHTML = RECOMMENDED_FIELDS.map(
-    (f) =>
-      `<button type="button" class="chip" data-field="${f}" title="点击加入模板，再点移除">{${f}}</button>`,
-  ).join("");
+  $("#field-chips").innerHTML = RECOMMENDED_FIELDS.map((f) => {
+    const title =
+      f === SMART_FIELD
+        ? "完全由大模型起一个中文文件名（不超过 12 个汉字）；点击后模板只留 {智能}，再点恢复"
+        : "点击加入模板，再点移除";
+    return `<button type="button" class="chip" data-field="${f}" title="${title}">{${f}}</button>`;
+  }).join("");
 }
 
 // 推荐字段点击切换：模板里没有则追加，已有则移除（含移除后孤立的分隔符）
@@ -784,9 +801,25 @@ function toggleFieldInPattern(pattern, field) {
     .replace(/^-+|-+$/g, "");
 }
 
+// {智能}：完全由大模型起名的独占模式。点击后暂存当前模板、只留 {智能}；
+// 再点一次恢复暂存的模板内容（暂存仅在一次 dialog 会话内有效）
+const SMART_FIELD = "智能";
+const SMART_PATTERN = "{智能}";
+let smartStash = "";
+
 function insertFieldChip(field) {
   const inp = $("#template-pattern");
-  inp.value = toggleFieldInPattern(inp.value, field);
+  if (field === SMART_FIELD) {
+    if (inp.value.trim() === SMART_PATTERN) {
+      // 再点一下 {智能}：恢复点击前的模板内容
+      if (smartStash) inp.value = smartStash;
+    } else {
+      smartStash = inp.value;
+      inp.value = SMART_PATTERN;
+    }
+  } else {
+    inp.value = toggleFieldInPattern(inp.value, field);
+  }
   inp.dispatchEvent(new Event("input"));
   inp.focus();
 }

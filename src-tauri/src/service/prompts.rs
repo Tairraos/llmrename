@@ -42,6 +42,10 @@ pub const FIELD_GUIDES: &[(&str, &str)] = &[
     ("天气", "天气返回：雨天，晴天，多云；室内返回：未知"),
     ("日夜", "如果是晚上，返回：夜晚；如果是白天，返回空字符串"),
     ("色调", "返回图片中最多的颜色名：红色调，黄色调，蓝色调，绿色调，灰色调，紫色调"),
+    (
+        "智能",
+        "不提取具体属性，由你综合整张图片内容，直接想一个最合适的完整文件名：中文，不超过 12 个汉字，不要扩展名",
+    ),
 ];
 
 /// 未收录字段的通用指南（兼容旧英文字段等）。
@@ -101,6 +105,14 @@ mod tests {
         let prompt = user_prompt(&["camera".into()]);
         assert!(prompt.contains("camera"));
         assert!(prompt.contains("简短的中文描述"));
+    }
+
+    #[test]
+    fn smart_field_gets_naming_guide() {
+        let prompt = user_prompt(&["智能".into()]);
+        assert!(prompt.contains("智能"));
+        assert!(prompt.contains("12 个汉字"), "智能指南应包含 12 汉字上限");
+        assert!(prompt.contains("完整文件名"));
     }
 
     #[test]
