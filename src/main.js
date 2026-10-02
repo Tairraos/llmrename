@@ -15,6 +15,7 @@ window.App = {
   running: false,
   historyApplied: null, // HistoryStatus
   fill: { running: false, stopRequested: false, stopped: false, okPaths: new Set() },
+  regex: { find: "", replace: "" }, // 正则改名预览（预览不进历史，重命名时才生效）
 };
 
 /* ---------------- 渲染 ---------------- */
@@ -51,21 +52,113 @@ function splitNameExt(filename) {
 }
 
 // 由 name + ext 合成完整目标文件名
+function composeNameExt(name, ext) {
+  const n = (name ?? "").trim();
+  return ext ? `${n}.${ext}` : n;
+}
+
 function composeTarget(t) {
-  const name = (t.name ?? "").trim();
-  return t.ext ? `${name}.${t.ext}` : name;
+  return composeNameExt(t.name, t.ext);
+}
+
+/* ---------------- 正则改名预览 ---------------- */
+
+// 当前生效的正则（查找为空或正则非法 → null；g 全局替换）
+function activeRegex() {
+  const r = window.App.regex;
+  if (!r || !r.find) return null;
+  try {
+    return { re: new RegExp(r.find, "g"), replace: r.replace ?? "" };
+  } catch {
+    return null;
+  }
+}
+
+// 正则预览：命中且替换结果有变化时返回新文件名（不含扩展名），否则 null。
+// 扩展名不参与正则；预览不写状态、不进历史，只在「开始重命名」时生效。
+function regexPreview(t, rx) {
+  if (!rx) return null;
+  let out;
+  try {
+    out = t.name.replace(rx.re, rx.replace);
+  } catch {
+    return null;
+  }
+  return out === t.name ? null : out;
+}
+
+// 正则生效时该行实际将重命名成的目标名（无生效正则则用普通目标名）
+function effectiveName(t) {
+  return regexPreview(t, activeRegex()) ?? t.name;
+}
+
+function composeEffective(t) {
+  return composeNameExt(effectiveName(t), t.ext);
+}
+
+/* ---------------- 正则弹层（向上弹出的小对话框） ---------------- */
+
+function toggleRegexPopover() {
+  const pop = $("#regex-popover");
+  if (!pop) return;
+  pop.hidden = !pop.hidden;
+  if (!pop.hidden) {
+    updateRegexHint();
+    $("#regex-find").focus();
+  }
+}
+
+// 仅关闭弹层；已预览的方案保留（查找/替换与列表预览都不动）
+function closeRegexPopover() {
+  const pop = $("#regex-popover");
+  if (pop) pop.hidden = true;
+}
+
+// 正则输入：实时校验 + 整表刷新预览
+function onRegexInput() {
+  window.App.regex.find = $("#regex-find").value;
+  window.App.regex.replace = $("#regex-replace").value;
+  updateRegexHint();
+  renderTargets();
+}
+
+function updateRegexHint() {
+  const hint = $("#regex-hint");
+  if (!hint) return;
+  const find = $("#regex-find").value;
+  if (!find) {
+    hint.textContent = "填写正则后，下方列表实时预览替换结果";
+    hint.className = "hint";
+    return;
+  }
+  try {
+    new RegExp(find, "g");
+  } catch (e) {
+    hint.textContent = `正则无效：${e.message}`;
+    hint.className = "hint err";
+    return;
+  }
+  const rx = activeRegex();
+  const hits = window.App.targets.filter((t) => regexPreview(t, rx) !== null).length;
+  hint.textContent = hits > 0 ? `命中 ${hits} 行，扩展名不参与替换` : "没有行被命中";
+  hint.className = "hint";
 }
 
 // 单行表格 HTML（renderTargets 与 item-done 就地更新共用同一模板）
 function targetRowHtml(t, i) {
   // 当前文件名列：与目标列一致不显示扩展名（title 保留完整文件名）
   const curName = escapeHtml(splitNameExt(t.filename).name);
-  const safeNamePart = escapeHtml(t.name);
+  // 正则改名预览：命中行显示替换后的名字（只读），扩展名不参与正则
+  const preview = regexPreview(t, activeRegex());
+  const hit = preview !== null;
+  const safeNamePart = escapeHtml(hit ? preview : t.name);
   const extLabel = t.ext
     ? `<span class="target-ext" title="扩展名不可编辑">.${escapeHtml(t.ext)}</span>`
     : "";
   // 目标名 ≠ 当前文件名：本行会在执行重命名时受影响，淡蓝底色
-  const changed = composeTarget(t) !== t.filename;
+  // （正则生效时按预览值判定；命中行另加淡黄底色）
+  const changed =
+    (hit ? composeNameExt(preview, t.ext) : composeTarget(t)) !== t.filename;
   // 行级版本历史：有可导航的历史（>1 个版本，或目标名有未提交的编辑）才显示操作按钮
   const h = t.history;
   const edited = composeTarget(t) !== h.versions[h.pos];
@@ -75,7 +168,7 @@ function targetRowHtml(t, i) {
   // redo：仅在目标名未被手动改动且有下一版本时可用
   const redoDisabled = !(!edited && h.pos < h.versions.length - 1);
   const selected = t.selected !== false;
-  return `<tr class="${changed ? "changed" : ""}" data-idx="${i}">
+  return `<tr class="${changed ? "changed" : ""}${hit ? " regex-hit" : ""}" data-idx="${i}">
         <td class="sel-cell">
           <input type="checkbox" class="row-sel" data-idx="${i}" ${selected ? "checked" : ""} title="选中后才会被大模型解析" />
         </td>
@@ -87,6 +180,7 @@ function targetRowHtml(t, i) {
             type="text"
             value="${safeNamePart}"
             spellcheck="false"
+            ${hit ? 'readonly title="正则预览结果（点「开始重命名」时生效）；要手改请先清空正则查找框"' : ""}
           />${extLabel}
         </td>
         <td class="ops-cell">${
@@ -596,6 +690,8 @@ async function executeRename() {
   // 收集当前目标名（可能刚编辑过）
   const inputs = [...document.querySelectorAll(".target-input")];
   for (const inp of inputs) {
+    // 正则预览行（只读）显示的是预览值：不写回状态，预览不进历史
+    if (inp.readOnly) continue;
     const i = Number(inp.dataset.idx);
     if (Number.isInteger(i) && window.App.targets[i]) {
       window.App.targets[i].name = inp.value.trim();
@@ -603,9 +699,10 @@ async function executeRename() {
       rowCommit(window.App.targets[i]);
     }
   }
-  // 仅处理「被勾选 且 目标名 ≠ 当前名」的行；其余跳过
+  // 仅处理「被勾选 且 实际目标名 ≠ 当前名」的行；其余跳过。
+  // 正则生效时实际目标名 = 预览值（在此刻才真正生效）
   const changedItems = window.App.targets.filter(
-    (t) => t.selected !== false && composeTarget(t) !== t.filename,
+    (t) => t.selected !== false && composeEffective(t) !== t.filename,
   );
   const skipSame = window.App.targets.length - changedItems.length;
   if (changedItems.length === 0) {
@@ -614,7 +711,7 @@ async function executeRename() {
   }
   const items = changedItems.map((t) => ({
     path: t.path,
-    target: composeTarget(t),
+    target: composeEffective(t),
   }));
   setRunning(true);
   showRunHint("重命名中…", "");
@@ -625,6 +722,17 @@ async function executeRename() {
     const skipCount = outcomes.filter((o) => o.status === "skipped").length;
     renderHistory(historyStatus);
     await refreshLogs();
+    // 有行真正改名即视为正则方案已被消费：清空查找/替换，预览随之消失
+    // （避免同一正则对新名字二次命中造成连环改名；全部失败时保留以便重试）
+    if (okCount > 0) {
+      window.App.regex.find = "";
+      window.App.regex.replace = "";
+      const findInput = $("#regex-find");
+      if (findInput) findInput.value = "";
+      const replaceInput = $("#regex-replace");
+      if (replaceInput) replaceInput.value = "";
+      updateRegexHint();
+    }
     // 成功的行保留在列表：更新当前文件名/路径/版本链，背景色随一致恢复
     syncRowAfterRename(outcomes);
     renderTargets();
@@ -726,7 +834,7 @@ function updateStopButton() {
 
 function setRunning(r) {
   window.App.running = r;
-  for (const id of ["btn-execute", "btn-ai-fill", "btn-pick-files", "btn-pick-dir"]) {
+  for (const id of ["btn-execute", "btn-ai-fill", "btn-regex", "btn-pick-files", "btn-pick-dir"]) {
     const el = $(`#${id}`);
     if (el) el.disabled = r;
   }
@@ -880,6 +988,10 @@ function bindEvents() {
     if (chip) insertFieldChip(chip.dataset.field);
   });
   $("#btn-ai-fill").addEventListener("click", () => aiFillTargets(false));
+  $("#btn-regex").addEventListener("click", toggleRegexPopover);
+  $("#btn-regex-close").addEventListener("click", closeRegexPopover);
+  $("#regex-find").addEventListener("input", onRegexInput);
+  $("#regex-replace").addEventListener("input", onRegexInput);
   $("#btn-stop-fill").addEventListener("click", () => {
     const f = window.App.fill;
     if (f.running && !f.stopRequested) {

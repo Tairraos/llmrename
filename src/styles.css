@@ -258,6 +258,21 @@ button.danger:hover:not(:disabled) {
 .assets-table tbody tr.changed:hover {
   background: #dcebff;
 }
+/* 正则命中的行：淡黄底色（预览中，点「开始重命名」才生效）。
+   与 changed 同时存在时后者规则在文件更靠后，淡黄优先展示 */
+.assets-table tbody tr.regex-hit {
+  background: #fff7e0;
+}
+.assets-table tbody tr.regex-hit:hover {
+  background: #fdefc7;
+}
+/* 正则预览行的输入框只读：显示预览值，禁止编辑 */
+.assets-table .target-input[readonly] {
+  cursor: default;
+}
+.assets-table .target-input[readonly]:hover {
+  border-color: var(--border);
+}
 /* 操作列：行内 undo/redo 图标按钮（默认整列为空） */
 .assets-table .ops-cell {
   width: 96px;
@@ -609,6 +624,61 @@ button.danger:hover:not(:disabled) {
 /* 解析 / 停止按钮靠右对齐 */
 .template-bar #btn-ai-fill {
   margin-left: auto;
+}
+/* 正则改名：按钮 + 向上弹出的小对话框（绝对定位于按钮容器） */
+.regex-wrap {
+  position: relative;
+}
+.regex-popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  width: 320px;
+  padding: 12px 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 32px rgba(16, 24, 40, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.regex-pop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.regex-close {
+  border: none;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+.regex-close:hover {
+  background: #eef2f7;
+  color: var(--text);
+}
+.regex-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.regex-row span {
+  flex: 0 0 2.5em;
+}
+.regex-row input {
+  flex: 1;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12px;
 }
 /* 底部操作区按钮（撤销/重做/清空/开始）靠右对齐，左侧提示文本不动 */
 .actions #btn-undo {

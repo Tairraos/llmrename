@@ -44,6 +44,24 @@
           <span class="hint">模板：</span>
           <code id="template-summary">（未设置）</code>
           <button id="btn-ai-fill" class="primary">解析</button>
+          <span class="regex-wrap">
+            <button id="btn-regex" type="button" class="secondary" title="用正则批量改名（实时预览）">正则</button>
+            <div id="regex-popover" class="regex-popover" hidden>
+              <div class="regex-pop-head">
+                <span>正则改名预览（不匹配扩展名）</span>
+                <button type="button" id="btn-regex-close" class="regex-close" title="关闭（保留已预览的方案）">✕</button>
+              </div>
+              <label class="regex-row">
+                <span>查找</span>
+                <input id="regex-find" type="text" spellcheck="false" placeholder="正则，如 IMG_(\d+)" />
+              </label>
+              <label class="regex-row">
+                <span>替换</span>
+                <input id="regex-replace" type="text" spellcheck="false" placeholder="替换为，支持 $1" />
+              </label>
+              <span id="regex-hint" class="hint"></span>
+            </div>
+          </span>
           <button id="btn-stop-fill" class="secondary" disabled>停止</button>
         </div>
         <div class="targets-scroll">
