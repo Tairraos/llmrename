@@ -8,6 +8,9 @@ import { invoke, listen } from "./api.js";
 
 const $ = (sel) => document.querySelector(sel);
 
+// 行 checkbox 上次点击的行号（shift 范围勾选的起点）
+let lastRowCheckedIdx = null;
+
 window.App = {
   config: null, // ModelConfig + TemplateConfig + RenameOptions
   targets: [], // { path, filename, target }[]（待重命名单）
@@ -1118,6 +1121,17 @@ function bindEvents() {
   });
   // 失焦仅清空末尾输入态，不入队；入队发生在 undo 或「开始重命名」时
   $("#targets-body").addEventListener("change", (e) => {
+    // 键盘切换行 checkbox（鼠标点击由 .sel-cell 的 click 托管）
+    if (e.target.classList?.contains("row-sel")) {
+      const i = Number(e.target.dataset.idx);
+      const t = window.App.targets[i];
+      if (Number.isInteger(i) && t) {
+        t.selected = e.target.checked;
+        const all = $("#sel-all");
+        if (all) all.checked = window.App.targets.every((x) => x.selected !== false);
+      }
+      return;
+    }
     const inp = e.target;
     if (!inp.classList.contains("target-input")) return;
     const i = Number(inp.dataset.idx);
@@ -1125,15 +1139,45 @@ function bindEvents() {
     if (Number.isInteger(i) && t) rowTruncate(t);
     renderTargets();
   });
+  // 失焦时目标名与当前文件名一致（含未编辑的复制占位）→ 清空不显示；
+  // 直接改 DOM 值而不整表重渲染，避免抢走下一个焦点
+  $("#targets-body").addEventListener("focusout", (e) => {
+    const inp = e.target;
+    if (!inp.classList.contains("target-input")) return;
+    const i = Number(inp.dataset.idx);
+    const t = window.App.targets[i];
+    if (!Number.isInteger(i) || !t) return;
+    if (composeTarget(t) === t.filename && inp.value !== "") inp.value = "";
+  });
   // 操作列：行内 undo/redo（在目标名位置显示上/下一个文件名）
   $("#targets-body").addEventListener("click", (e) => {
-    // 行选中 checkbox
-    const cb = e.target.closest(".row-sel");
-    if (cb) {
-      const i = Number(cb.dataset.idx);
+    // 行选中：点击勾选格（checkbox pointer-events:none，纯状态渲染）
+    const cell = e.target.closest(".sel-cell");
+    if (cell) {
+      const cbEl = cell.querySelector(".row-sel");
+      const i = Number(cbEl?.dataset.idx);
       const t = window.App.targets[i];
       if (Number.isInteger(i) && t) {
-        t.selected = cb.checked;
+        const nextState = !t.selected;
+        if (e.shiftKey && lastRowCheckedIdx !== null) {
+          // shift 批量：把上次点击到本次之间的所有行，改成与本次相同的状态
+          const lo = Math.min(lastRowCheckedIdx, i);
+          const hi = Math.max(lastRowCheckedIdx, i);
+          for (let k = lo; k <= hi; k++) {
+            const rowTarget = window.App.targets[k];
+            if (rowTarget) {
+              rowTarget.selected = nextState;
+              const rowCb = document.querySelector(
+                `#targets-body tr[data-idx="${k}"] .row-sel`,
+              );
+              if (rowCb) rowCb.checked = nextState;
+            }
+          }
+        } else {
+          t.selected = nextState;
+          cbEl.checked = nextState;
+        }
+        lastRowCheckedIdx = i;
         // 同步全选框状态
         const all = $("#sel-all");
         if (all) all.checked = window.App.targets.every((x) => x.selected !== false);
@@ -1144,7 +1188,11 @@ function bindEvents() {
     const cur = e.target.closest(".current-name");
     if (cur) {
       const inp = cur.closest("tr")?.querySelector(".target-input");
-      if (inp) {
+      const i = Number(inp?.dataset.idx);
+      const t = Number.isInteger(i) ? window.App.targets[i] : null;
+      if (inp && t) {
+        // 目标名为空（未改动的空显示）时，先把当前文件名复制进去再全选聚焦
+        if (inp.value === "" && composeTarget(t) === t.filename) inp.value = t.name;
         inp.focus();
         inp.select();
       }
@@ -1159,7 +1207,18 @@ function bindEvents() {
     else if (btn.dataset.op === "redo") rowRedo(t);
     renderTargets();
   });
-  // 表头全选
+  // 表头全选：点击整格切换（checkbox pointer-events:none），键盘 Space 走 change
+  const selCol = document.querySelector("th.sel-col");
+  if (selCol) {
+    selCol.addEventListener("click", () => {
+      const allChecked = window.App.targets.every((t) => t.selected !== false);
+      const next = !allChecked;
+      for (const t of window.App.targets) t.selected = next;
+      const selAll = $("#sel-all");
+      if (selAll) selAll.checked = next;
+      renderTargets();
+    });
+  }
   const selAll = $("#sel-all");
   if (selAll) {
     selAll.addEventListener("change", () => {
